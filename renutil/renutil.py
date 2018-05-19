@@ -183,7 +183,7 @@ def list_versions(args, unkown):
         if not instances:
             print("No instances are currently installed.")
         else:
-            for release in instances[:args.n]:
+            for release in sorted(instances[:args.n], reverse=True):
                 print(release.version)
     else:
         print("Available versions:")
