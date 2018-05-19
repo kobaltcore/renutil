@@ -9,7 +9,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="renutil",
-    version="0.2.0",
+    version="0.2.1",
     description="A toolkit for managing Ren'Py instances via the command line.",
     long_description=long_description,
     long_description_content_type="text/markdown",
