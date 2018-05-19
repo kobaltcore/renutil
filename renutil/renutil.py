@@ -366,7 +366,10 @@ def main():
     parser_launch.set_defaults(func=launch)
 
     args, unknown = parser.parse_known_args()
-    args.func(args, unknown)
+    if vars(args).get("func", None):
+        args.func(args, unknown)
+    else:
+        print("Type 'renutil -h' to see all available actions")
 
 if __name__ == '__main__':
     main()
