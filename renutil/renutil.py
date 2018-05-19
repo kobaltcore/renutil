@@ -5,13 +5,14 @@ from sys import exit
 from lxml import html
 from tqdm import tqdm
 from re import compile
+from stat import S_IXUSR
 from shutil import rmtree
 from subprocess import run
 from zipfile import ZipFile
 from urllib.request import urlopen
 from semantic_version import Version
 from json.decoder import JSONDecodeError
-from os import mkdir, R_OK, W_OK, access, listdir, remove, environ, uname
+from os import mkdir, R_OK, W_OK, access, listdir, remove, environ, uname, chmod
 from os.path import exists, expanduser, join, isdir, isfile, getsize, commonprefix
 
 
@@ -260,13 +261,19 @@ def install(args, unkown):
     sdk_zip.extractall(path=join(CACHE, folder_name), members=get_members(sdk_zip))
     rapt_zip.extractall(path=join(CACHE, folder_name, "rapt"), members=get_members(rapt_zip))
 
+    print("Installing RAPT...")
     environ["PGS4A_NO_TERMS"] = "no"
     # run android.py installsdk
     del environ["PGS4A_NO_TERMS"]
 
+    print("Registering instance...")
     registry = open(INSTANCE_REGISTRY, "r")
     instances = jsonpickle.decode(registry.read())
-    add_to_registry(RenpyInstance(args.version, folder_name))
+    instance = RenpyInstance(args.version, folder_name)
+    add_to_registry(instance)
+
+    libs = get_libraries(instance)
+    chmod(libs[0], S_IXUSR)
 
     print("Cleaning up...")
     remove(join(CACHE, sdk_filename))
@@ -283,9 +290,10 @@ def uninstall(args, unkown):
     rmtree(join(CACHE, instance.path))
 
 
-def get_libraries(root):
+def get_libraries(instance):
     info = uname()
     platform = "{}-{}".format(info.sysname, info.machine)
+    root = instance.path
     root1 = root
     root2 = root
     lib = None
@@ -333,7 +341,7 @@ def launch(args, unkown):
         exit(1)
     instance = get_instance(args.version)
     environ["SDL_AUDIODRIVER"] = "dummy"
-    cmd = get_libraries(instance.path)
+    cmd = get_libraries(instance)
     if args.launcher:
         cmd += [join(CACHE, instance.launcher_path)]
     cmd += unkown
