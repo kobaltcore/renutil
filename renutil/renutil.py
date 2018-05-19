@@ -31,7 +31,7 @@ class ComparableVersion():
         self.version = version
 
     def __repr__(self):
-        return f"ComparableVersion(version={self.version})"
+        return "ComparableVersion(version={})".format(self.version)
 
     def __eq__(self, other):
         return self.version == other.version
@@ -60,7 +60,7 @@ class RenpyInstance(ComparableVersion):
         self.launcher_path = join(self.path, "launcher")
 
     def __repr__(self):
-        return f"RenpyInstance(version={self.version}, path='{self.path}', launcher_path='{self.launcher_path}')"
+        return "RenpyInstance(version={}, path='{}', launcher_path='{}')".format(self.version, self.path, self.launcher_path)
 
 
 class RenpyRelease(ComparableVersion):
@@ -70,7 +70,7 @@ class RenpyRelease(ComparableVersion):
         self.url = url
 
     def __repr__(self):
-        return f"RenpyRelease(version={self.version}, url='{self.url}')"
+        return "RenpyRelease(version={}, url='{}')".format(self.version, self.url)
 
 
 def is_online():
@@ -91,13 +91,13 @@ def scan_instances(path):
 def assure_state(func):
     def wrapper(args=None, unkown=None):
         if not access(CACHE, R_OK | W_OK):
-            print(f"Cache directory is not writeable:\n{CACHE}\nPlease make sure this script has permission to write to this directory.")
+            print("Cache directory is not writeable:\n{}\nPlease make sure this script has permission to write to this directory.".format(CACHE))
             exit(1)
         if not isdir(CACHE):
-            print(f"Cache directory does not exist, creating it:\n{CACHE}")
+            print("Cache directory does not exist, creating it:\n{}".format(CACHE))
             mkdir(CACHE)
         if not isfile(INSTANCE_REGISTRY):
-            print(f"Instance registry does not exist, creating it:\n{INSTANCE_REGISTRY}")
+            print("Instance registry does not exist, creating it:\n{}".format(INSTANCE_REGISTRY))
             instances = scan_instances(CACHE)
             with open(INSTANCE_REGISTRY, "w") as f:
                 f.write(jsonpickle.encode(instances))
