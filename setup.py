@@ -9,7 +9,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="renutil",
-    version="0.1.2",
+    version="0.2.0",
     description="A toolkit for managing Ren'Py instances via the command line.",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -25,7 +25,7 @@ setup(
     ],
     keywords="build renpy visual-novel packaging deployment toolkit",
     packages=find_packages(exclude=["contrib", "docs", "tests"]),
-    install_requires=["requests", "lxml", "semantic_version", "jsonpickle"],
+    install_requires=["requests", "lxml", "semantic_version", "jsonpickle", "tqdm"],
     python_requires=">=3",
     entry_points={
         "console_scripts": [
