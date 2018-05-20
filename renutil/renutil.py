@@ -100,15 +100,14 @@ def assure_state(func):
         if not isdir(CACHE):
             print("Cache directory does not exist, creating it:\n{}".format(CACHE))
             mkdir(CACHE)
+        instances = scan_instances(CACHE)
         if not isfile(INSTANCE_REGISTRY):
             print("Instance registry does not exist, creating it:\n{}".format(INSTANCE_REGISTRY))
-            instances = scan_instances(CACHE)
             with open(INSTANCE_REGISTRY, "w") as f:
                 f.write(jsonpickle.encode(instances))
         else:
-            pass
-            # TODO: if exists, scan for instances and add if they are not yet in the registry.
-            # likewise, remove them if they are not available anymore.
+            for instance in instances:
+                add_to_registry(instance)
         return func(args, unkown)
     return wrapper
 
@@ -118,7 +117,6 @@ def call_assure_state(args=None, unkown=None):
     pass
 
 
-@assure_state
 def get_registry(args=None, unkown=None):
     file = open(INSTANCE_REGISTRY, "r")
     try:
@@ -141,9 +139,10 @@ def remove_from_registry(instance):
 
 def add_to_registry(instance):
     registry = get_registry()
-    registry.append(instance)
-    with open(INSTANCE_REGISTRY, "w") as f:
-        f.write(jsonpickle.encode(registry))
+    if not instance in registry:
+        registry.append(instance)
+        with open(INSTANCE_REGISTRY, "w") as f:
+            f.write(jsonpickle.encode(registry))
 
 
 def get_instance(version):
@@ -176,23 +175,25 @@ def get_available_versions(args=None, unkown=None):
     return sorted(releases, reverse=True)
 
 
+def get_installed_versions(args=None, unkown=None):
+    return sorted(get_registry(), reverse=True)
+
+
 @assure_state
 def list_versions(args, unkown):
-    if args.installed:
-        print("Installed versions:")
-        instances = get_registry()
-        if not instances:
-            print("No instances are currently installed.")
-        else:
-            for release in sorted(instances[:args.n], reverse=True):
-                print(release.version)
-    else:
-        print("Available versions:")
+    if args.available:
         releases = get_available_versions()
         if not releases:
             print("No releases are available.")
         else:
             for release in releases[:args.n]:
+                print(release.version)
+    else:
+        instances = get_installed_versions()
+        if not instances:
+            print("No instances are currently installed.")
+        else:
+            for release in instances[:args.n]:
                 print(release.version)
 
 
@@ -338,17 +339,18 @@ def get_libraries(instance):
 def launch(args, unkown):
     if not installed(args.version):
         print("{} is not installed!".format(args.version))
+        print()
         exit(1)
     instance = get_instance(args.version)
     environ["SDL_AUDIODRIVER"] = "dummy"
     cmd = get_libraries(instance)
-    if args.launcher:
+    if not args.direct:
         cmd += [join(CACHE, instance.launcher_path)]
     cmd += unkown
     try:
         run(cmd)
     except KeyboardInterrupt:
-        pass
+        call_assure_state()
     del environ["SDL_AUDIODRIVER"]
 
 
@@ -356,24 +358,45 @@ def main():
     parser = argparse.ArgumentParser(description="A toolkit for managing Ren'Py instances via the command line.")
     subparsers = parser.add_subparsers()
 
-    parser_list = subparsers.add_parser("list", help="List Ren'Py versions.")
-    parser_list.add_argument("-n", type=int, default=5, help="The number of versions to show")
-    parser_list.add_argument("--installed", action="store_true", help="Only show installed versions")
+    parser_list = subparsers.add_parser("list", aliases=["ls"],
+                                        description="List all installed versions of Ren'Py, or alternatively query \
+                                        available versions from https://renpy.org/dl.",
+                                        help="List Ren'Py versions.")
+    parser_list.add_argument("-n",
+                             type=int,
+                             default=5,
+                             help="The number of versions to show")
+    parser_list.add_argument("-a", "--available",
+                             action="store_true",
+                             help="Show versions available to be installed")
     parser_list.set_defaults(func=list_versions)
 
-    parser_install = subparsers.add_parser("install", help="Install a version of Ren'Py.")
-    parser_install.add_argument("version", type=str, help="The version to install")
+    parser_install = subparsers.add_parser("install", aliases=["i"],
+                                           description="Install the specified version of Ren'Py, including RAPT, set \
+                                           up for use via 'renutil launch'.",
+                                           help="Install a version of Ren'Py.")
+    parser_install.add_argument("version", type=str, help="The version to install in SemVer format")
     parser_install.set_defaults(func=install)
 
-    parser_uninstall = subparsers.add_parser(
-        "uninstall", aliases=["remove"], help="Uninstall an installed version of Ren'Py.")
-    parser_uninstall.add_argument("version", type=str, help="The version to uninstall")
+    parser_uninstall = subparsers.add_parser("uninstall", aliases=["u", "remove", "r", "rm"],
+                                             description="Uninstall the specified version of Ren'Py, removing all \
+                                             related artifacts and cache objects.",
+                                             help="Uninstall an installed version of Ren'Py.")
+    parser_uninstall.add_argument("version",
+                                  type=str,
+                                  help="The version to uninstall in SemVer format")
     parser_uninstall.set_defaults(func=uninstall)
 
-    parser_launch = subparsers.add_parser("launch", help="Launch an installed version of Ren'Py.")
-    parser_launch.add_argument("version", type=str, help="The version to launch")
-    parser_launch.add_argument("--launcher", action="store_true",
-                               help="Launches the Ren'Py-internal 'launcher' project")
+    parser_launch = subparsers.add_parser("launch", aliases=["l"],
+                                          description="Launch the specified version of Ren'Py, pointing to the \
+                                          'launcher' project by default.",
+                                          help="Launch an installed version of Ren'Py.")
+    parser_launch.add_argument("version",
+                               type=str,
+                               help="The version to launch in SemVer format")
+    parser_launch.add_argument("-d", "--direct",
+                               action="store_true",
+                               help="Launches the Ren'Py script directly")
     parser_launch.set_defaults(func=launch)
 
     args, unknown = parser.parse_known_args()
