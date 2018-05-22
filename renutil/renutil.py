@@ -84,13 +84,16 @@ def scan_instances(path):
     for folder in listdir(path):
         m = semver.match(folder)
         if m:
-            version = Version(m.group(1))
-            instances.append(RenpyInstance(version, folder))
+            try:
+                version = Version(m.group(1))
+                instances.append(RenpyInstance(version, folder))
+            except ValueError:
+                continue
     return instances
 
 
 def assure_state(func):
-    def wrapper(args=None, unkown=None):
+    def wrapper(args=None, unknown=None):
         if not exists(CACHE):
             print("Cache directory does not exist, creating it:\n{}".format(CACHE))
             mkdir(CACHE)
@@ -108,16 +111,16 @@ def assure_state(func):
         else:
             for instance in instances:
                 add_to_registry(instance)
-        return func(args, unkown)
+        return func(args, unknown)
     return wrapper
 
 
 @assure_state
-def call_assure_state(args=None, unkown=None):
+def call_assure_state(args=None, unknown=None):
     pass
 
 
-def get_registry(args=None, unkown=None):
+def get_registry(args=None, unknown=None):
     file = open(INSTANCE_REGISTRY, "r")
     try:
         registry = jsonpickle.decode(file.read())
@@ -147,16 +150,34 @@ def add_to_registry(instance):
 
 def get_instance(version):
     if isinstance(version, str):
-        version = Version(version)
+        try:
+            version = Version(version)
+        except ValueError:
+            return None
     registry = get_registry()
     for instance in registry:
         if instance.version == version:
             return instance
     return None
 
+def valid_version(version):
+    if isinstance(version, str):
+        try:
+            version = Version(version)
+        except ValueError:
+            return False
+    registry = get_registry()
+    for instance in registry:
+        if instance.version == version:
+            return True
+    releases = get_available_versions()
+    for release in releases:
+        if release.version == version:
+            return True
+    return False
 
 @assure_state
-def get_available_versions(args=None, unkown=None):
+def get_available_versions(args=None, unknown=None):
     if not is_online():
         print("Could not retrieve version list: No connection could be established.")
         exit(1)
@@ -168,19 +189,22 @@ def get_available_versions(args=None, unkown=None):
         m = semver.match(link)
         if not m:
             continue
-        version = Version(m.group(1))
-        url = "https://www.renpy.org/dl/{0}/renpy-{0}-sdk.zip".format(m.group(1))
-        release = RenpyRelease(version, url)
-        releases.append(release)
+        try:
+            version = Version(m.group(1))
+            url = "https://www.renpy.org/dl/{0}/renpy-{0}-sdk.zip".format(m.group(1))
+            release = RenpyRelease(version, url)
+            releases.append(release)
+        except ValueError:
+            continue
     return sorted(releases, reverse=True)
 
 
-def get_installed_versions(args=None, unkown=None):
+def get_installed_versions(args=None, unknown=None):
     return sorted(get_registry(), reverse=True)
 
 
 @assure_state
-def list_versions(args, unkown):
+def list_versions(args, unknown):
     if args.available:
         releases = get_available_versions()
         if not releases:
@@ -199,7 +223,10 @@ def list_versions(args, unkown):
 
 def installed(version):
     if isinstance(version, str):
-        version = Version(version)
+        try:
+            version = Version(version)
+        except ValueError:
+            return False
     for instance in get_registry():
         if instance.version == version:
             return True
@@ -242,9 +269,12 @@ def get_members(zip):
 
 
 @assure_state
-def install(args, unkown):
+def install(args, unknown):
     if installed(args.version):
         print("{} is already installed!".format(args.version))
+        exit(1)
+    if not valid_version(args.version):
+        print("Invalid version specifier!")
         exit(1)
 
     print("Downloading necessary files...")
@@ -282,7 +312,7 @@ def install(args, unkown):
 
 
 @assure_state
-def uninstall(args, unkown):
+def uninstall(args, unknown):
     if not installed(args.version):
         print("{} is not installed!".format(args.version))
         exit(1)
@@ -336,17 +366,19 @@ def get_libraries(instance):
 
 
 @assure_state
-def launch(args, unkown):
+def launch(args, unknown):
     if not installed(args.version):
         print("{} is not installed!".format(args.version))
-        print()
+        args.available = False
+        args.n = 5
+        list_versions(args, unknown)
         exit(1)
     instance = get_instance(args.version)
     environ["SDL_AUDIODRIVER"] = "dummy"
     cmd = get_libraries(instance)
     if not args.direct:
         cmd += [join(CACHE, instance.launcher_path)]
-    cmd += unkown
+    cmd += unknown
     try:
         run(cmd)
     except KeyboardInterrupt:
