@@ -7,13 +7,14 @@ from tqdm import tqdm
 from re import compile
 from stat import S_IXUSR
 from shutil import rmtree
-from subprocess import run
 from zipfile import ZipFile
 from urllib.request import urlopen
 from semantic_version import Version
+from contextlib import contextmanager
+from subprocess import run, PIPE, Popen
 from json.decoder import JSONDecodeError
-from os import mkdir, R_OK, W_OK, access, listdir, remove, environ, uname, chmod
 from os.path import exists, expanduser, join, isdir, isfile, getsize, commonprefix
+from os import mkdir, R_OK, W_OK, access, listdir, remove, environ, uname, chmod, getcwd, chdir
 
 
 semver = compile(
@@ -58,6 +59,7 @@ class RenpyInstance(ComparableVersion):
     def __init__(self, version=None, path=None):
         super(RenpyInstance, self).__init__(version)
         self.path = path
+        self.rapt_path = join(self.path, "rapt")
         self.launcher_path = join(self.path, "launcher")
 
     def __repr__(self):
@@ -72,6 +74,16 @@ class RenpyRelease(ComparableVersion):
 
     def __repr__(self):
         return "RenpyRelease(version={}, url='{}')".format(self.version, self.url)
+
+
+@contextmanager
+def cd(dir):
+    prevdir = getcwd()
+    chdir(expanduser(dir))
+    try:
+        yield
+    finally:
+        chdir(prevdir)
 
 
 def is_online():
@@ -160,6 +172,7 @@ def get_instance(version):
             return instance
     return None
 
+
 def valid_version(version):
     if isinstance(version, str):
         try:
@@ -175,6 +188,7 @@ def valid_version(version):
         if release.version == version:
             return True
     return False
+
 
 @assure_state
 def get_available_versions(args=None, unknown=None):
@@ -294,7 +308,15 @@ def install(args, unknown):
 
     print("Installing RAPT...")
     environ["PGS4A_NO_TERMS"] = "no"
-    # run android.py installsdk
+    rapt_path = join(CACHE, folder_name, "rapt")
+    with cd(rapt_path):
+        echo = Popen(["echo", """Y
+Y
+CobaltCore"""], stdout=PIPE)
+        install = Popen(["python2", "android.py", "installsdk"], stdin=echo.stdout, stdout=PIPE)
+        for line in install.stdout:
+            if args.verbose:
+                print(str(line.strip(), "utf-8"))
     del environ["PGS4A_NO_TERMS"]
 
     print("Registering instance...")
@@ -408,6 +430,7 @@ def main():
                                            up for use via 'renutil launch'.",
                                            help="Install a version of Ren'Py.")
     parser_install.add_argument("version", type=str, help="The version to install in SemVer format")
+    parser_install.add_argument("-v", "--verbose", action="store_true", help="Print more information when given")
     parser_install.set_defaults(func=install)
 
     parser_uninstall = subparsers.add_parser("uninstall", aliases=["u", "remove", "r", "rm"],

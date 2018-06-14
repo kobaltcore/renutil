@@ -9,7 +9,7 @@ renUtil can be installed via pip:
 $ pip install renutil
 ```
 
-Please note that renUtil reuires Python 3 and will not provide backwards compatibility for Python 2 for the foreseeable future.
+Please note that renUtil requires Python 3 and will not provide backwards compatibility for Python 2 for the foreseeable future.
 
 ## Usage
 ```
