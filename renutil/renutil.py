@@ -59,7 +59,6 @@ class RenpyInstance(ComparableVersion):
     def __init__(self, version=None, path=None):
         super(RenpyInstance, self).__init__(version)
         self.path = path
-        self.tmp_path = join(self.path, "tmp")
         self.rapt_path = join(self.path, "rapt")
         self.launcher_path = join(self.path, "launcher")
 
@@ -421,8 +420,10 @@ def cleanup(args, unknown):
         list_versions(args, unknown)
         exit(1)
     instance = get_instance(args.version)
-    if isdir(join(CACHE, instance.tmp_path)):
-        rmtree(join(CACHE, instance.tmp_path))
+    paths = [join(instance.path, "tmp"), join(instance.rapt_path, "assets"), join(instance.rapt_path, "bin")]
+    for path in paths:
+        if isdir(join(CACHE, path)):
+            rmtree(join(CACHE, path))
 
 
 def main():
