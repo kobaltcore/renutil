@@ -5,9 +5,9 @@ from sys import exit
 from lxml import html
 from tqdm import tqdm
 from re import compile
-from stat import S_IXUSR
 from shutil import rmtree
 from zipfile import ZipFile
+from stat import S_IRUSR, S_IXUSR
 from urllib.request import urlopen
 from semantic_version import Version
 from contextlib import contextmanager
