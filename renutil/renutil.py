@@ -59,6 +59,7 @@ class RenpyInstance(ComparableVersion):
     def __init__(self, version=None, path=None):
         super(RenpyInstance, self).__init__(version)
         self.path = path
+        self.tmp_path = join(self.path, "tmp")
         self.rapt_path = join(self.path, "rapt")
         self.launcher_path = join(self.path, "launcher")
 
@@ -326,7 +327,8 @@ CobaltCore"""], stdout=PIPE)
     add_to_registry(instance)
 
     head, tail = split(get_libraries(instance)[0])
-    paths = [join(head, "python"), join(head, "pythonw"), join(head, "renpy"), join(head, "zsync"), join(head, "zsyncmake")]
+    paths = [join(head, "python"), join(head, "pythonw"),
+             join(head, "renpy"), join(head, "zsync"), join(head, "zsyncmake")]
     for path in paths:
         chmod(path, S_IRUSR | S_IXUSR)
 
@@ -410,6 +412,19 @@ def launch(args, unknown):
     del environ["SDL_AUDIODRIVER"]
 
 
+@assure_state
+def cleanup(args, unknown):
+    if not installed(args.version):
+        print("{} is not installed!".format(args.version))
+        args.available = False
+        args.n = 5
+        list_versions(args, unknown)
+        exit(1)
+    instance = get_instance(args.version)
+    if isdir(instance.tmp_path):
+        rmtree(join(CACHE, instance.tmp_path))
+
+
 def main():
     parser = argparse.ArgumentParser(description="A toolkit for managing Ren'Py instances via the command line.")
     subparsers = parser.add_subparsers()
@@ -455,6 +470,15 @@ def main():
                                action="store_true",
                                help="Launches the Ren'Py script directly")
     parser_launch.set_defaults(func=launch)
+
+    parser_clear_cache = subparsers.add_parser("cleanup", aliases=["clean", "c"],
+                                               description="Clean the temporary build artifacts of the specified version \
+                                          of Ren'Py.",
+                                               help="Clean temporary files of the specified Ren'Py version.")
+    parser_clear_cache.add_argument("version",
+                                    type=str,
+                                    help="The version to clean in SemVer format")
+    parser_clear_cache.set_defaults(func=cleanup)
 
     args, unknown = parser.parse_known_args()
     if vars(args).get("func", None):
