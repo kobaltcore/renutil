@@ -421,7 +421,7 @@ def cleanup(args, unknown):
         list_versions(args, unknown)
         exit(1)
     instance = get_instance(args.version)
-    if isdir(instance.tmp_path):
+    if isdir(join(CACHE, instance.tmp_path)):
         rmtree(join(CACHE, instance.tmp_path))
 
 
