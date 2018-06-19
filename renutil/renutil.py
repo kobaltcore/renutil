@@ -328,7 +328,7 @@ CobaltCore"""], stdout=PIPE)
     head, tail = split(get_libraries(instance)[0])
     paths = [join(head, "python"), join(head, "pythonw"), join(head, "renpy"), join(head, "zsync"), join(head, "zsyncmake")]
     for path in paths:
-        chmod(path, S_IXUSR)
+        chmod(path, S_IRUSR | S_IXUSR)
 
     print("Cleaning up...")
     remove(join(CACHE, sdk_filename))
