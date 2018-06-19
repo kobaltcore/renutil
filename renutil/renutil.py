@@ -13,7 +13,7 @@ from semantic_version import Version
 from contextlib import contextmanager
 from subprocess import run, PIPE, Popen
 from json.decoder import JSONDecodeError
-from os.path import exists, expanduser, join, isdir, isfile, getsize, commonprefix
+from os.path import exists, expanduser, join, isdir, isfile, getsize, commonprefix, split
 from os import mkdir, R_OK, W_OK, access, listdir, remove, environ, uname, chmod, getcwd, chdir
 
 
@@ -325,8 +325,10 @@ CobaltCore"""], stdout=PIPE)
     instance = RenpyInstance(args.version, folder_name)
     add_to_registry(instance)
 
-    libs = get_libraries(instance)
-    chmod(libs[0], S_IXUSR)
+    head, tail = split(get_libraries(instance)[0])
+    paths = [join(head, "python"), join(head, "pythonw"), join(head, "renpy"), join(head, "zsync"), join(head, "zsyncmake")]
+    for path in paths:
+        chmod(path, S_IXUSR)
 
     print("Cleaning up...")
     remove(join(CACHE, sdk_filename))
