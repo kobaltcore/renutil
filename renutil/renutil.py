@@ -106,15 +106,12 @@ def scan_instances(path):
 
 def assure_state(func):
     def wrapper(args=None, unknown=None):
-        if not exists(CACHE):
+        if not isdir(CACHE):
             print("Cache directory does not exist, creating it:\n{}".format(CACHE))
             mkdir(CACHE)
         if not access(CACHE, R_OK | W_OK):
             print("Cache directory is not writeable:\n{}\nPlease make sure this script has permission to write to this directory.".format(CACHE))
             exit(1)
-        if not isdir(CACHE):
-            print("Cache directory does not exist, creating it:\n{}".format(CACHE))
-            mkdir(CACHE)
         instances = scan_instances(CACHE)
         if not isfile(INSTANCE_REGISTRY):
             print("Instance registry does not exist, creating it:\n{}".format(INSTANCE_REGISTRY))
