@@ -328,10 +328,6 @@ CobaltCore"""], stdout=PIPE)
     for path in paths:
         chmod(path, S_IRUSR | S_IXUSR)
 
-    print("Cleaning up...")
-    remove(join(CACHE, sdk_filename))
-    remove(join(CACHE, rapt_filename))
-
 
 @assure_state
 def uninstall(args, unknown):
