@@ -309,7 +309,8 @@ def install(args, unknown):
     with cd(rapt_path):
         echo = Popen(["echo", """Y
 Y
-CobaltCore"""], stdout=PIPE)
+Y
+renutil"""], stdout=PIPE)
         install = Popen(["python2", "android.py", "installsdk"], stdin=echo.stdout, stdout=PIPE)
         for line in install.stdout:
             if args.verbose:
