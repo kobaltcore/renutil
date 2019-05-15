@@ -1,28 +1,31 @@
+### System ###
+import os
+import re
+import sys
+import shutil
 import argparse
 import requests
-import jsonpickle
-from sys import exit
-from lxml import html
-from tqdm import tqdm
-from re import compile
-from shutil import rmtree
 from zipfile import ZipFile
 from stat import S_IRUSR, S_IXUSR
-from urllib.request import urlopen
-from semantic_version import Version
 from contextlib import contextmanager
 from subprocess import run, PIPE, Popen
 from json.decoder import JSONDecodeError
-from os.path import exists, expanduser, join, isdir, isfile, getsize, commonprefix, split
-from os import mkdir, R_OK, W_OK, access, listdir, remove, environ, uname, chmod, getcwd, chdir
+
+### Parsing ###
+import jsonpickle
+from lxml import html
+from semantic_version import Version
+
+### Display ###
+from tqdm import tqdm
 
 
-semver = compile(
+semver = re.compile(
     r"^((0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?)/?$")
 
 
-CACHE = join(expanduser("~"), ".renutil")
-INSTANCE_REGISTRY = join(CACHE, "index.json")
+CACHE = os.path.join(os.path.expanduser("~"), ".renutil")
+INSTANCE_REGISTRY = os.path.join(CACHE, "index.json")
 
 
 class ComparableVersion():
@@ -59,8 +62,8 @@ class RenpyInstance(ComparableVersion):
     def __init__(self, version=None, path=None):
         super(RenpyInstance, self).__init__(version)
         self.path = path
-        self.rapt_path = join(self.path, "rapt")
-        self.launcher_path = join(self.path, "launcher")
+        self.rapt_path = os.path.join(self.path, "rapt")
+        self.launcher_path = os.path.join(self.path, "launcher")
 
     def __repr__(self):
         return "RenpyInstance(version={}, path='{}', launcher_path='{}')".format(self.version, self.path, self.launcher_path)
@@ -78,22 +81,29 @@ class RenpyRelease(ComparableVersion):
 
 @contextmanager
 def cd(dir):
-    prevdir = getcwd()
-    chdir(expanduser(dir))
+    prevdir = os.getcwd()
+    os.chdir(os.path.expanduser(dir))
     try:
         yield
     finally:
-        chdir(prevdir)
+        os.chdir(prevdir)
 
 
 def is_online():
-    return True
-    # TODO: check to see if we are completely offline or renpy.org itself is down
+    r = requests.head("https://www.renpy.org")
+    renpy_down = r.status_code == 200
+    r = requests.head("https://www.google.com")
+    google_down = r.status_code == 200
+    if google_down and renpy_down:
+        return -2
+    elif renpy_down:
+        return -1
+    return 1
 
 
 def scan_instances(path):
     instances = []
-    for folder in listdir(path):
+    for folder in os.listdir(path):
         m = semver.match(folder)
         if m:
             try:
@@ -106,14 +116,14 @@ def scan_instances(path):
 
 def assure_state(func):
     def wrapper(args=None, unknown=None):
-        if not isdir(CACHE):
+        if not os.path.isdir(CACHE):
             print("Cache directory does not exist, creating it:\n{}".format(CACHE))
-            mkdir(CACHE)
-        if not access(CACHE, R_OK | W_OK):
+            os.mkdir(CACHE)
+        if not os.access(CACHE, os.R_OK | os.W_OK):
             print("Cache directory is not writeable:\n{}\nPlease make sure this script has permission to write to this directory.".format(CACHE))
-            exit(1)
+            sys.exit(1)
         instances = scan_instances(CACHE)
-        if not isfile(INSTANCE_REGISTRY):
+        if not os.path.isfile(INSTANCE_REGISTRY):
             print("Instance registry does not exist, creating it:\n{}".format(INSTANCE_REGISTRY))
             with open(INSTANCE_REGISTRY, "w") as f:
                 f.write(jsonpickle.encode(instances))
@@ -134,7 +144,7 @@ def get_registry(args=None, unknown=None):
     try:
         registry = jsonpickle.decode(file.read())
     except JSONDecodeError as e:
-        remove(INSTANCE_REGISTRY)
+        os.remove(INSTANCE_REGISTRY)
         call_assure_state()
         return None
     return registry
@@ -189,11 +199,13 @@ def valid_version(version):
 
 @assure_state
 def get_available_versions(args=None, unknown=None):
-    if not is_online():
-        print("Could not retrieve version list: No connection could be established.")
-        exit(1)
     releases = []
-    r = requests.get("https://www.renpy.org/dl/")
+    try:
+        r = requests.get("https://www.renpy.org/dl/")
+    except:
+        print("Could not retrieve version list: No connection could be established.")
+        print("This might mean that you are not connected to the internet or that renpy.org is down.")
+        sys.exit(1)
     tree = html.fromstring(r.content)
     links = tree.xpath("//a/text()")
     for link in links:
@@ -245,9 +257,9 @@ def installed(version):
 
 
 def download(url, dest):
-    file_size = int(urlopen(url).headers.get("Content-Length", -1))
-    if exists(dest):
-        first_byte = getsize(dest)
+    file_size = int(requests.head(url).headers.get("Content-Length", -1))
+    if os.path.exists(dest):
+        first_byte = os.path.getsize(dest)
     else:
         first_byte = 0
     if first_byte >= file_size:
@@ -268,7 +280,7 @@ def get_members(zip):
     for name in zip.namelist():
         if not name.endswith('/'):
             parts.append(name.split('/')[:-1])
-    prefix = commonprefix(parts)
+    prefix = os.path.commonprefix(parts)
     if prefix:
         prefix = '/'.join(prefix) + '/'
     offset = len(prefix)
@@ -283,10 +295,10 @@ def get_members(zip):
 def install(args, unknown):
     if installed(args.version):
         print("{} is already installed!".format(args.version))
-        exit(1)
+        sys.exit(1)
     if not valid_version(args.version):
         print("Invalid version specifier!")
-        exit(1)
+        sys.exit(1)
 
     print("Downloading necessary files...")
     sdk_filename = "renpy-{0}-sdk.zip".format(args.version)
@@ -294,18 +306,18 @@ def install(args, unknown):
     folder_name = args.version
     SDK_URL = "https://www.renpy.org/dl/{}/{}".format(args.version, sdk_filename)
     RAPT_URL = "https://www.renpy.org/dl/{}/{}".format(args.version, rapt_filename)
-    download(SDK_URL, join(CACHE, sdk_filename))
-    download(RAPT_URL, join(CACHE, rapt_filename))
+    download(SDK_URL, os.path.join(CACHE, sdk_filename))
+    download(RAPT_URL, os.path.join(CACHE, rapt_filename))
 
     print("Extracting Ren'Py...")
-    sdk_zip = ZipFile(join(CACHE, sdk_filename), "r")
-    rapt_zip = ZipFile(join(CACHE, rapt_filename), "r")
-    sdk_zip.extractall(path=join(CACHE, folder_name), members=get_members(sdk_zip))
-    rapt_zip.extractall(path=join(CACHE, folder_name, "rapt"), members=get_members(rapt_zip))
+    sdk_zip = ZipFile(os.path.join(CACHE, sdk_filename), "r")
+    rapt_zip = ZipFile(os.path.join(CACHE, rapt_filename), "r")
+    sdk_zip.extractall(path=os.path.join(CACHE, folder_name), members=get_members(sdk_zip))
+    rapt_zip.extractall(path=os.path.join(CACHE, folder_name, "rapt"), members=get_members(rapt_zip))
 
     print("Installing RAPT...")
-    environ["PGS4A_NO_TERMS"] = "no"
-    rapt_path = join(CACHE, folder_name, "rapt")
+    os.environ["PGS4A_NO_TERMS"] = "no"
+    rapt_path = os.path.join(CACHE, folder_name, "rapt")
     with cd(rapt_path):
         echo = Popen(["echo", """Y
 Y
@@ -315,7 +327,7 @@ renutil"""], stdout=PIPE)
         for line in install.stdout:
             if args.verbose:
                 print(str(line.strip(), "utf-8"))
-    del environ["PGS4A_NO_TERMS"]
+    del os.environ["PGS4A_NO_TERMS"]
 
     print("Registering instance...")
     registry = open(INSTANCE_REGISTRY, "r")
@@ -323,25 +335,25 @@ renutil"""], stdout=PIPE)
     instance = RenpyInstance(args.version, folder_name)
     add_to_registry(instance)
 
-    head, tail = split(get_libraries(instance)[0])
-    paths = [join(head, "python"), join(head, "pythonw"),
-             join(head, "renpy"), join(head, "zsync"), join(head, "zsyncmake")]
+    head, tail = os.path.split(get_libraries(instance)[0])
+    paths = [os.path.join(head, "python"), os.path.join(head, "pythonw"),
+             os.path.join(head, "renpy"), os.path.join(head, "zsync"), os.path.join(head, "zsyncmake")]
     for path in paths:
-        chmod(path, S_IRUSR | S_IXUSR)
+        os.chmod(path, S_IRUSR | S_IXUSR)
 
 
 @assure_state
 def uninstall(args, unknown):
     if not installed(args.version):
         print("{} is not installed!".format(args.version))
-        exit(1)
+        sys.exit(1)
     instance = get_instance(args.version)
     remove_from_registry(instance)
-    rmtree(join(CACHE, instance.path))
+    shutil.rmtree(os.path.join(CACHE, instance.path))
 
 
 def get_libraries(instance):
-    info = uname()
+    info = os.uname()
     platform = "{}-{}".format(info.sysname, info.machine)
     root = instance.path
     root1 = root
@@ -365,20 +377,20 @@ def get_libraries(instance):
         root2 = root
 
     for folder in [root, root1, root2]:
-        lib = join(CACHE, folder, "lib", platform)
-        if isdir(lib):
+        lib = os.path.join(CACHE, folder, "lib", platform)
+        if os.path.isdir(lib):
             break
-    lib = join(lib, "renpy")
+    lib = os.path.join(lib, "renpy")
 
     if not lib:
-        print("Ren'Py platform files not found in '{}'".format(join(root, "lib", platform)))
+        print("Ren'Py platform files not found in '{}'".format(os.path.join(root, "lib", platform)))
 
-    if "LD_LIBRARY_PATH" in environ and len(environ["LD_LIBRARY_PATH"]) != 0:
-        environ["LD_LIBRARY_PATH"] = "{}:{}".format(lib, environ["LD_LIBRARY_PATH"])
+    if "LD_LIBRARY_PATH" in os.environ and len(os.environ["LD_LIBRARY_PATH"]) != 0:
+        os.environ["LD_LIBRARY_PATH"] = "{}:{}".format(lib, os.environ["LD_LIBRARY_PATH"])
 
     for folder in [root, root1, root2]:
-        base_file = join(CACHE, folder, "renpy.py")
-        if isfile(base_file):
+        base_file = os.path.join(CACHE, folder, "renpy.py")
+        if os.path.isfile(base_file):
             break
 
     return [lib, "-EO", base_file]
@@ -391,18 +403,18 @@ def launch(args, unknown):
         args.available = False
         args.n = 5
         list_versions(args, unknown)
-        exit(1)
+        sys.exit(1)
     instance = get_instance(args.version)
-    environ["SDL_AUDIODRIVER"] = "dummy"
+    os.environ["SDL_AUDIODRIVER"] = "dummy"
     cmd = get_libraries(instance)
     if not args.direct:
-        cmd += [join(CACHE, instance.launcher_path)]
+        cmd += [os.path.join(CACHE, instance.launcher_path)]
     cmd += unknown
     try:
         run(cmd)
     except KeyboardInterrupt:
         call_assure_state()
-    del environ["SDL_AUDIODRIVER"]
+    del os.environ["SDL_AUDIODRIVER"]
 
 
 @assure_state
@@ -412,12 +424,13 @@ def cleanup(args, unknown):
         args.available = False
         args.n = 5
         list_versions(args, unknown)
-        exit(1)
+        sys.exit(1)
     instance = get_instance(args.version)
-    paths = [join(instance.path, "tmp"), join(instance.rapt_path, "assets"), join(instance.rapt_path, "bin")]
+    paths = [os.path.join(instance.path, "tmp"),
+             os.path.join(instance.rapt_path, "assets"), os.path.join(instance.rapt_path, "bin")]
     for path in paths:
-        if isdir(join(CACHE, path)):
-            rmtree(join(CACHE, path))
+        if os.path.isdir(os.path.join(CACHE, path)):
+            shutil.rmtree(os.path.join(CACHE, path))
 
 
 def main():
