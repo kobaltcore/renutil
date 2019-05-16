@@ -257,7 +257,11 @@ def installed(version):
 
 
 def download(url, dest):
-    file_size = int(requests.head(url).headers.get("Content-Length", -1))
+    response = requests.head(url)
+    if response.status_code == 404:
+        print("The engine package could not be found.")
+        sys.exit(1)
+    file_size = int(response.headers.get("Content-Length", -1))
     if os.path.exists(dest):
         first_byte = os.path.getsize(dest)
     else:
