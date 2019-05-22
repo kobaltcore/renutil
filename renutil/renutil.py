@@ -379,6 +379,9 @@ def get_libraries(instance):
         platform = "linux-{}".format(info.machine)
         root1 = root
         root2 = root
+    else:
+        print("Could not detect system architecture. It might not be supported.")
+        sys.exit(1)
 
     for folder in [root, root1, root2]:
         lib = os.path.join(CACHE, folder, "lib", platform)
