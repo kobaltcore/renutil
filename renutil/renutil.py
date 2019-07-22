@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import shutil
+import textwrap
 import argparse
 import requests
 from zipfile import ZipFile
@@ -407,6 +408,7 @@ def get_libraries(instance):
 def launch(args, unknown):
     if not installed(args.version):
         print("{} is not installed!".format(args.version))
+        print("Available versions:")
         args.available = False
         args.n = 5
         list_versions(args, unknown)
@@ -418,6 +420,8 @@ def launch(args, unknown):
         cmd += [os.path.join(CACHE, instance.launcher_path)]
     cmd += unknown
     try:
+        if args.verbose:
+            print(" ".join(cmd))
         run(cmd)
     except KeyboardInterrupt:
         call_assure_state()
@@ -439,44 +443,76 @@ def cleanup(args, unknown):
         if os.path.isdir(os.path.join(CACHE, path)):
             shutil.rmtree(os.path.join(CACHE, path))
 
+main_description = """
+"""
+
 
 def main():
-    parser = argparse.ArgumentParser(description="A toolkit for managing Ren'Py instances via the command line.")
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     description=textwrap.dedent("""
+                                                 A toolkit for managing Ren'Py instances via the command line.\n
+                                                 Various versions of Ren'Py can be installed and launched at
+                                                 the same time and completely independently from each other.\n
+                                                 Instances can be launched with their GUI or CLI-only.""")
+                                     )
     subparsers = parser.add_subparsers()
 
     parser_list = subparsers.add_parser("list", aliases=["ls"],
-                                        description="List all installed versions of Ren'Py, or alternatively query \
-                                        available versions from https://renpy.org/dl.",
+                                        formatter_class=argparse.RawDescriptionHelpFormatter,
+                                        description=textwrap.dedent("""
+                                                    List all installed versions of Ren'Py, or alternatively
+                                                    query available versions from https://renpy.org/dl."""),
                                         help="List Ren'Py versions.")
     parser_list.add_argument("-n",
                              type=int,
                              default=5,
-                             help="The number of versions to show")
+                             help="The number of versions to show (default: 5)")
     parser_list.add_argument("-a", "--available",
                              action="store_true",
                              help="Show versions available to be installed")
     parser_list.set_defaults(func=list_versions)
 
     parser_install = subparsers.add_parser("install", aliases=["i"],
-                                           description="Install the specified version of Ren'Py, including RAPT, set \
-                                           up for use via 'renutil launch'.",
-                                           help="Install a version of Ren'Py.")
+                                           formatter_class=argparse.RawDescriptionHelpFormatter,
+                                           description=textwrap.dedent("""
+                                                       Install the specified version of Ren'Py (including RAPT),
+                                                       set up for use via 'renutil launch'."""),
+                                           help="Install a version of Ren'Py.",
+                                           epilog=textwrap.dedent("""
+                                                  This tool will automatically accept the Android SDK licenses for you
+                                                  while installing any version of Ren'Py. If you are no okay with this,
+                                                  you can not use this tool."""))
     parser_install.add_argument("version", type=str, help="The version to install in SemVer format")
     parser_install.add_argument("-v", "--verbose", action="store_true", help="Print more information when given")
     parser_install.set_defaults(func=install)
 
     parser_uninstall = subparsers.add_parser("uninstall", aliases=["u", "remove", "r", "rm"],
-                                             description="Uninstall the specified version of Ren'Py, removing all \
-                                             related artifacts and cache objects.",
+                                             formatter_class=argparse.RawDescriptionHelpFormatter,
+                                             description=textwrap.dedent("""
+                                                         Uninstall the specified version of Ren'Py, removing
+                                                         all related artifacts and cache objects."""),
                                              help="Uninstall an installed version of Ren'Py.")
     parser_uninstall.add_argument("version",
                                   type=str,
                                   help="The version to uninstall in SemVer format")
     parser_uninstall.set_defaults(func=uninstall)
 
+    # TODO: Android building is currently broken because of incorrect permissions somewhere
     parser_launch = subparsers.add_parser("launch", aliases=["l"],
-                                          description="Launch the specified version of Ren'Py, pointing to the \
-                                          'launcher' project by default.",
+                                          formatter_class=argparse.RawDescriptionHelpFormatter,
+                                          description=textwrap.dedent("""
+                                                      Launch the specified version of Ren'Py.\n
+                                                      If invoked with default arguments, starts the 'launcher' project,
+                                                      which results in starting up the regular GUI launcher interface.\n
+                                                      If invoked with the --direct flag, grants command-line access to
+                                                      'renpy.py' and hands off all subsequent arguments to its argument parser.\n
+                                                      Launch a project directly:
+                                                          renutil launch <version> -d <path_to_project_directory>\n
+                                                      Build PC / Linux / macOS distributions for a project:
+                                                          renutil launch <version> distribute <path_to_project_directory>\n
+                                                      Build Android distributions for a project:
+                                                          renutil launch <version> android_build <path_to_project_directory> assembleRelease|installDebug
+                                                      """),
                                           help="Launch an installed version of Ren'Py.")
     parser_launch.add_argument("version",
                                type=str,
@@ -484,11 +520,13 @@ def main():
     parser_launch.add_argument("-d", "--direct",
                                action="store_true",
                                help="Launches the Ren'Py script directly")
+    parser_launch.add_argument("-v", "--verbose", action="store_true", help="Print more information when given")
     parser_launch.set_defaults(func=launch)
 
     parser_clear_cache = subparsers.add_parser("cleanup", aliases=["clean", "c"],
-                                               description="Clean the temporary build artifacts of the specified version \
-                                          of Ren'Py.",
+                                               formatter_class=argparse.RawDescriptionHelpFormatter,
+                                               description=textwrap.dedent("""
+                                                           Clean the temporary build artifacts of the specified version of Ren'Py."""),
                                                help="Clean temporary files of the specified Ren'Py version.")
     parser_clear_cache.add_argument("version",
                                     type=str,
