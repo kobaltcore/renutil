@@ -497,7 +497,10 @@ def main():
 
     args, unknown = parser.parse_known_args()
     if vars(args).get("func", None):
-        args.func(args, unknown)
+        try:
+            args.func(args, unknown)
+        except KeyboardInterrupt:
+            tqdm.write("Aborted")
     else:
         print("Type 'renutil -h' to see all available actions")
 
