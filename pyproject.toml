@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "renutil"
+version = "1.3.0"
+description = "A toolkit for managing Ren'Py instances via the command line"
+authors = ["CobaltCore <cobaltcore@yandex.com>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/kobaltcore/renutil"
+homepage = "https://github.com/kobaltcore/renutil"
+
+[tool.poetry.scripts]
+renutil = "renutil.renutil:main"
+
+[tool.poetry.dependencies]
+python = "^3.5"
+jsonpickle = "^1.3"
+semantic_version = "^2.8.4"
+lxml = "^4.5.0"
+
+[tool.poetry.dev-dependencies]
+flake8 = "^3.7"
+pytest = "^5.1"
+codecov = "^2.0"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"

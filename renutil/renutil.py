@@ -21,8 +21,7 @@ from semantic_version import Version
 from tqdm import tqdm
 
 
-semver = re.compile(
-    r"^((0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?)/?$")
+semver = re.compile(r"^((0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?)/?$")  # noqa: E501
 
 
 CACHE = os.path.join(os.path.expanduser("~"), ".renutil")
@@ -67,7 +66,7 @@ class RenpyInstance(ComparableVersion):
         self.launcher_path = os.path.join(self.path, "launcher")
 
     def __repr__(self):
-        return "RenpyInstance(version={}, path='{}', launcher_path='{}')".format(self.version, self.path, self.launcher_path)
+        return "RenpyInstance(version={}, path='{}', launcher_path='{}')".format(self.version, self.path, self.launcher_path)  # noqa: E501
 
 
 class RenpyRelease(ComparableVersion):
@@ -121,7 +120,7 @@ def assure_state(func):
             print("Cache directory does not exist, creating it:\n{}".format(CACHE))
             os.mkdir(CACHE)
         if not os.access(CACHE, os.R_OK | os.W_OK):
-            print("Cache directory is not writeable:\n{}\nPlease make sure this script has permission to write to this directory.".format(CACHE))
+            print("Cache directory is not writeable:\n{}\nPlease make sure this script has permission to write to this directory.".format(CACHE))  # noqa: E501
             sys.exit(1)
         instances = scan_instances(CACHE)
         if not os.path.isfile(INSTANCE_REGISTRY):
@@ -144,7 +143,7 @@ def get_registry(args=None, unknown=None):
     file = open(INSTANCE_REGISTRY, "r")
     try:
         registry = jsonpickle.decode(file.read())
-    except JSONDecodeError as e:
+    except JSONDecodeError:
         os.remove(INSTANCE_REGISTRY)
         call_assure_state()
         return None
@@ -162,7 +161,7 @@ def remove_from_registry(instance):
 
 def add_to_registry(instance):
     registry = get_registry()
-    if not instance in registry:
+    if instance not in registry:
         registry.append(instance)
         with open(INSTANCE_REGISTRY, "w") as f:
             f.write(jsonpickle.encode(registry))
@@ -203,7 +202,7 @@ def get_available_versions(args=None, unknown=None):
     releases = []
     try:
         r = requests.get("https://www.renpy.org/dl/")
-    except:
+    except:  # noqa: E722
         print("Could not retrieve version list: No connection could be established.")
         print("This might mean that you are not connected to the internet or that renpy.org is down.")
         sys.exit(1)
@@ -270,7 +269,8 @@ def download(url, dest):
     if first_byte >= file_size:
         return
     header = {"Range": "bytes={}-{}".format(first_byte, file_size)}
-    progress_bar = tqdm(total=file_size, initial=first_byte, unit="B", unit_scale=True, desc=url.split("/")[-1])
+    progress_bar = tqdm(total=file_size, initial=first_byte, unit="B",
+                        unit_scale=True, desc=url.split("/")[-1])
     req = requests.get(url, headers=header, stream=True)
     with(open(dest, "ab")) as f:
         for chunk in req.iter_content(chunk_size=1024):
@@ -335,12 +335,10 @@ renutil"""], stdout=PIPE)
     del os.environ["PGS4A_NO_TERMS"]
 
     print("Registering instance...")
-    registry = open(INSTANCE_REGISTRY, "r")
-    instances = jsonpickle.decode(registry.read())
     instance = RenpyInstance(args.version, folder_name)
     add_to_registry(instance)
 
-    head, tail = os.path.split(get_libraries(instance)[0])
+    head, _ = os.path.split(get_libraries(instance)[0])
     paths = [os.path.join(head, "python"), os.path.join(head, "pythonw"),
              os.path.join(head, "renpy"), os.path.join(head, "zsync"), os.path.join(head, "zsyncmake")]
     for path in paths:
@@ -498,23 +496,27 @@ def main():
                                   help="The version to uninstall in SemVer format")
     parser_uninstall.set_defaults(func=uninstall)
 
-    # TODO: Android building is currently broken because of incorrect permissions somewhere
+    description = """
+    Launch the specified version of Ren'Py.\n
+    If invoked with default arguments, starts the 'launcher' project,
+    which results in starting up the regular GUI launcher interface.\n
+    If invoked with the --direct flag, grants command-line access to
+    'renpy.py' and hands off all subsequent arguments to its argument parser.\n
+    Launch a project directly:
+        renutil launch <version> -d <path_to_project_directory>\n
+    Build PC / Linux / macOS distributions for a project:
+        renutil launch <version> distribute <path_to_project_directory>\n
+    Build Android distributions for a project:
+        renutil launch <version> android_build <path_to_project_directory> assembleRelease|installDebug
+    """
+
+    # TODO: Android building is currently broken
+    # because of incorrect permissions somewhere
     parser_launch = subparsers.add_parser("launch", aliases=["l"],
                                           formatter_class=argparse.RawDescriptionHelpFormatter,
-                                          description=textwrap.dedent("""
-                                                      Launch the specified version of Ren'Py.\n
-                                                      If invoked with default arguments, starts the 'launcher' project,
-                                                      which results in starting up the regular GUI launcher interface.\n
-                                                      If invoked with the --direct flag, grants command-line access to
-                                                      'renpy.py' and hands off all subsequent arguments to its argument parser.\n
-                                                      Launch a project directly:
-                                                          renutil launch <version> -d <path_to_project_directory>\n
-                                                      Build PC / Linux / macOS distributions for a project:
-                                                          renutil launch <version> distribute <path_to_project_directory>\n
-                                                      Build Android distributions for a project:
-                                                          renutil launch <version> android_build <path_to_project_directory> assembleRelease|installDebug
-                                                      """),
+                                          description=textwrap.dedent(description),
                                           help="Launch an installed version of Ren'Py.")
+
     parser_launch.add_argument("version",
                                type=str,
                                help="The version to launch in SemVer format")
@@ -527,7 +529,7 @@ def main():
     parser_clear_cache = subparsers.add_parser("cleanup", aliases=["clean", "c"],
                                                formatter_class=argparse.RawDescriptionHelpFormatter,
                                                description=textwrap.dedent("""
-                                                           Clean the temporary build artifacts of the specified version of Ren'Py."""),
+                                                           Clean the temporary build artifacts of the specified version of Ren'Py."""),  # noqa: E501
                                                help="Clean temporary files of the specified Ren'Py version.")
     parser_clear_cache.add_argument("version",
                                     type=str,
