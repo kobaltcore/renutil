@@ -443,6 +443,7 @@ def cleanup(args, unknown):
         if os.path.isdir(os.path.join(CACHE, path)):
             shutil.rmtree(os.path.join(CACHE, path))
 
+
 main_description = """
 """
 
@@ -541,6 +542,7 @@ def main():
             tqdm.write("Aborted")
     else:
         print("Type 'renutil -h' to see all available actions")
+
 
 if __name__ == '__main__':
     main()
