@@ -12,11 +12,11 @@ commands:
           name: "Lint library and tests"
           command: |
             poetry run flake8 renutil tests
-      - run:
-          name: "Run unit tests and coverage"
-          command: |
-            poetry run coverage run --branch --source renutil -m pytest
-            poetry run codecov -t "${CODECOV_TOKEN}"
+      # - run:
+      #     name: "Run unit tests and coverage"
+      #     command: |
+      #       poetry run coverage run --branch --source renutil -m pytest
+      #       poetry run codecov -t "${CODECOV_TOKEN}"
 
 jobs:
   test-37:
