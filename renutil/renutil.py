@@ -247,8 +247,7 @@ def get_installed_versions(args=None, unknown=None):
 @click.option("-d/-nd", "--debug/--no-debug", default=False,
               help="Print debug information or only regular output")
 def cli(debug):
-    """
-    Commands can be abbreviated by the shortest unique string.
+    """Commands can be abbreviated by the shortest unique string.
 
     \b
     For example:
@@ -265,8 +264,7 @@ def cli(debug):
 @click.option("-n", "--num-versions", "count", default=5, type=int,
               help="Amount of versions to show, sorted in descending order")
 def list(show_all, count):
-    """
-    List all available versions of Ren'Py.
+    """List all available versions of Ren'Py.
     """
     assure_state()
     if show_all:
@@ -361,8 +359,7 @@ def get_members_tar(tar):
 @click.argument("version", required=True, type=str)
 @click.option("-f", "--force", is_flag=True)
 def install(version, force):
-    """
-    Install the specified version of Ren'Py (including RAPT).
+    """Install the specified version of Ren'Py (including RAPT).
     """
     assure_state()
     if installed(version):
@@ -456,8 +453,7 @@ renutil"""], stdout=PIPE)
 @cli.command()
 @click.argument("version", required=True, type=str)
 def uninstall(version):
-    """
-    Uninstall the specified Ren'Py version.
+    """Uninstall the specified Ren'Py version.
     """
     assure_state()
     if not installed(version):
@@ -520,8 +516,7 @@ def get_libraries(instance):
 @click.option("-d", "--direct", is_flag=True)
 @click.argument("args", nargs=-1, type=click.UNPROCESSED)
 def launch(version, direct, args):
-    """
-    Launch the specified version of Ren'Py.
+    """Launch the specified version of Ren'Py.
 
     If invoked with default arguments, starts the 'launcher' project,
     which results in starting up the regular GUI launcher interface.
@@ -562,8 +557,7 @@ def launch(version, direct, args):
 @cli.command()
 @click.argument("version", required=True, type=str)
 def cleanup(version):
-    """
-    Clean temporary files of the specified Ren'Py version.
+    """Clean temporary files of the specified Ren'Py version.
     """
     assure_state()
     if not installed(version):
