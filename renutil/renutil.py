@@ -3,18 +3,30 @@ import os
 import re
 import sys
 import shutil
+import logging
 import textwrap
 import argparse
-import requests
+import tarfile
 from zipfile import ZipFile
 from stat import S_IRUSR, S_IXUSR
 from contextlib import contextmanager
 from subprocess import run, PIPE, Popen
 from json.decoder import JSONDecodeError
 
+### Logging ###
+import logzero
+from logzero import logger
+
+### CLI Parsing ###
+import click
+
+### I/O ###
+import requests
+
 ### Parsing ###
 import jsonpickle
 from lxml import html
+from bs4 import BeautifulSoup
 from semantic_version import Version
 
 ### Display ###
@@ -26,6 +38,21 @@ semver = re.compile(r"^((0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d
 
 CACHE = os.path.join(os.path.expanduser("~"), ".renutil")
 INSTANCE_REGISTRY = os.path.join(CACHE, "index.json")
+
+
+class AliasedGroup(click.Group):
+
+    def get_command(self, ctx, cmd_name):
+        rv = click.Group.get_command(self, ctx, cmd_name)
+        if rv is not None:
+            return rv
+        matches = [x for x in self.list_commands(ctx)
+                   if x.startswith(cmd_name)]
+        if not matches:
+            return None
+        elif len(matches) == 1:
+            return click.Group.get_command(self, ctx, matches[0])
+        ctx.fail('Too many matches: %s' % ', '.join(sorted(matches)))
 
 
 class ComparableVersion():
@@ -114,29 +141,21 @@ def scan_instances(path):
     return instances
 
 
-def assure_state(func):
-    def wrapper(args=None, unknown=None):
-        if not os.path.isdir(CACHE):
-            print("Cache directory does not exist, creating it:\n{}".format(CACHE))
-            os.mkdir(CACHE)
-        if not os.access(CACHE, os.R_OK | os.W_OK):
-            print("Cache directory is not writeable:\n{}\nPlease make sure this script has permission to write to this directory.".format(CACHE))  # noqa: E501
-            sys.exit(1)
-        instances = scan_instances(CACHE)
-        if not os.path.isfile(INSTANCE_REGISTRY):
-            print("Instance registry does not exist, creating it:\n{}".format(INSTANCE_REGISTRY))
-            with open(INSTANCE_REGISTRY, "w") as f:
-                f.write(jsonpickle.encode(instances))
-        else:
-            for instance in instances:
-                add_to_registry(instance)
-        return func(args, unknown)
-    return wrapper
-
-
-@assure_state
-def call_assure_state(args=None, unknown=None):
-    pass
+def assure_state():
+    if not os.path.isdir(CACHE):
+        print("Cache directory does not exist, creating it:\n{}".format(CACHE))
+        os.mkdir(CACHE)
+    if not os.access(CACHE, os.R_OK | os.W_OK):
+        print("Cache directory is not writeable:\n{}\nPlease make sure this script has permission to write to this directory.".format(CACHE))  # noqa: E501
+        sys.exit(1)
+    instances = scan_instances(CACHE)
+    if not os.path.isfile(INSTANCE_REGISTRY):
+        print("Instance registry does not exist, creating it:\n{}".format(INSTANCE_REGISTRY))
+        with open(INSTANCE_REGISTRY, "w") as f:
+            f.write(jsonpickle.encode(instances))
+    else:
+        for instance in instances:
+            add_to_registry(instance)
 
 
 def get_registry(args=None, unknown=None):
@@ -197,8 +216,8 @@ def valid_version(version):
     return False
 
 
-@assure_state
 def get_available_versions(args=None, unknown=None):
+    assure_state()
     releases = []
     try:
         r = requests.get("https://www.renpy.org/dl/")
@@ -226,22 +245,37 @@ def get_installed_versions(args=None, unknown=None):
     return sorted(get_registry(), reverse=True)
 
 
-@assure_state
-def list_versions(args, unknown):
-    if args.available:
+@click.group(cls=AliasedGroup)
+@click.option("-d/-nd", "--debug/--no-debug", default=False,
+              help="Print debug information or only output warnings")
+def cli(debug):
+    logzero.loglevel(logging.DEBUG if debug else logging.INFO)
+
+
+@cli.command()
+@click.option("-a/-l", "--all/--local", "show_all", default=False,
+              help="Show all versions available to download or just the local ones")
+@click.option("-n", "--num-versions", "count", default=5, type=int,
+              help="Amount of versions to show, sorted in descending order")
+def list(show_all, count):
+    """
+    List all available versions of Ren'Py.
+    """
+    assure_state()
+    if show_all:
         releases = get_available_versions()
         if not releases:
-            print("No releases are available.")
+            logger.warning("No releases are available online.")
         else:
-            for release in releases[:args.n]:
-                print(release.version)
+            for release in releases[:count]:
+                click.echo(release.version)
     else:
         instances = get_installed_versions()
         if not instances:
-            print("No instances are currently installed.")
+            logger.warning("No instances are currently installed.")
         else:
-            for release in instances[:args.n]:
-                print(release.version)
+            for release in instances[:count]:
+                click.echo(release.version)
 
 
 def installed(version):
@@ -280,14 +314,16 @@ def download(url, dest):
     progress_bar.close()
 
 
-def get_members(zip):
+def get_members_zip(zip):
     parts = []
     for name in zip.namelist():
-        if not name.endswith('/'):
-            parts.append(name.split('/')[:-1])
+        if not name.endswith("/"):
+            data = name.split("/")[:-1]
+            if data:
+                parts.append(data)
     prefix = os.path.commonprefix(parts)
     if prefix:
-        prefix = '/'.join(prefix) + '/'
+        prefix = "/".join(prefix) + "/"
     offset = len(prefix)
     for zipinfo in zip.infolist():
         name = zipinfo.filename
@@ -296,33 +332,84 @@ def get_members(zip):
             yield zipinfo
 
 
-@assure_state
-def install(args, unknown):
-    if installed(args.version):
-        print("{} is already installed!".format(args.version))
-        sys.exit(1)
-    if not valid_version(args.version):
-        print("Invalid version specifier!")
+def get_members_tar(tar):
+    parts = []
+    for name in tar.getnames():
+        if not name.endswith("/"):
+            data = name.split("/")[:-1]
+            if data:
+                parts.append(data)
+    prefix = os.path.commonprefix(parts)
+    if prefix:
+        prefix = "/".join(prefix) + "/"
+    offset = len(prefix)
+    for tarinfo in tar.getmembers():
+        name = tarinfo.name
+        if len(name) > offset:
+            tarinfo.name = name[offset:]
+            yield tarinfo
+
+
+@cli.command()
+@click.argument("version", required=True, type=str)
+def install(version):
+    """
+    Install the specified version of Ren'Py (including RAPT).
+    """
+    assure_state()
+    # if installed(version):
+    #     logger.error("{} is already installed!".format(version))
+    #     sys.exit(1)
+    if not valid_version(version):
+        logger.error("Invalid version specifier!")
         sys.exit(1)
 
-    print("Downloading necessary files...")
-    sdk_filename = "renpy-{0}-sdk.zip".format(args.version)
-    rapt_filename = "renpy-{0}-rapt.zip".format(args.version)
-    folder_name = args.version
-    SDK_URL = "https://www.renpy.org/dl/{}/{}".format(args.version, sdk_filename)
-    RAPT_URL = "https://www.renpy.org/dl/{}/{}".format(args.version, rapt_filename)
+    logger.info("Downloading necessary files...")
+    sdk_filename = "renpy-{}-sdk.zip".format(version)
+    rapt_filename = "renpy-{}-rapt.zip".format(version)
+
+    r = requests.get("https://www.renpy.org/dl/{}".format(version))
+
+    PYGAME_URL = None
+    soup = BeautifulSoup(r.content, "html.parser")
+    for link in soup.find_all("a"):
+        href = link.get("href")
+        if href.startswith("pygame_sdl2"):
+            pygame_filename = href
+            break
+
+    if not pygame_filename:
+        logger.error("Could not find pygame_sdl2 package.")
+        sys.exit(1)
+
+    SDK_URL = "https://www.renpy.org/dl/{}/{}".format(version, sdk_filename)
+    RAPT_URL = "https://www.renpy.org/dl/{}/{}".format(version, rapt_filename)
+    PYGAME_URL = "https://www.renpy.org/dl/{}/{}".format(version, pygame_filename)
+
     download(SDK_URL, os.path.join(CACHE, sdk_filename))
     download(RAPT_URL, os.path.join(CACHE, rapt_filename))
+    download(PYGAME_URL, os.path.join(CACHE, pygame_filename))
 
-    print("Extracting Ren'Py...")
+    logger.info("Extracting files...")
     sdk_zip = ZipFile(os.path.join(CACHE, sdk_filename), "r")
     rapt_zip = ZipFile(os.path.join(CACHE, rapt_filename), "r")
-    sdk_zip.extractall(path=os.path.join(CACHE, folder_name), members=get_members(sdk_zip))
-    rapt_zip.extractall(path=os.path.join(CACHE, folder_name, "rapt"), members=get_members(rapt_zip))
+    pygame_tar = tarfile.open(os.path.join(CACHE, pygame_filename), "r")
+    sdk_zip.extractall(path=os.path.join(CACHE, version), members=get_members_zip(sdk_zip))
+    rapt_zip.extractall(path=os.path.join(CACHE, version, "rapt"), members=get_members_zip(rapt_zip))
+    pygame_tar.extractall(path=os.path.join(CACHE, version, "pygame_sdl2"), members=get_members_tar(pygame_tar))
 
-    print("Installing RAPT...")
+    logger.info("Installing pygame_sdl2...")
+    pygame_path = os.path.join(CACHE, version, "pygame_sdl2")
+    # TODO: Auto-determine this value
+    os.environ["MACOSX_DEPLOYMENT_TARGET"] = "10.15"
+    with cd(pygame_path):
+        install = Popen(["python2", "setup.py", "install"], stdout=PIPE, stderr=PIPE)
+        for line in install.stdout:
+            logger.debug(str(line.strip(), "utf-8"))
+
+    logger.info("Installing RAPT...")
     os.environ["PGS4A_NO_TERMS"] = "no"
-    rapt_path = os.path.join(CACHE, folder_name, "rapt")
+    rapt_path = os.path.join(CACHE, version, "rapt")
     with cd(rapt_path):
         echo = Popen(["echo", """Y
 Y
@@ -330,12 +417,11 @@ Y
 renutil"""], stdout=PIPE)
         install = Popen(["python2", "android.py", "installsdk"], stdin=echo.stdout, stdout=PIPE)
         for line in install.stdout:
-            if args.verbose:
-                print(str(line.strip(), "utf-8"))
+            logger.debug(str(line.strip(), "utf-8"))
     del os.environ["PGS4A_NO_TERMS"]
 
-    print("Registering instance...")
-    instance = RenpyInstance(args.version, folder_name)
+    logger.info("Registering instance...")
+    instance = RenpyInstance(version, version)
     add_to_registry(instance)
 
     head, _ = os.path.split(get_libraries(instance)[0])
@@ -344,13 +430,20 @@ renutil"""], stdout=PIPE)
     for path in paths:
         os.chmod(path, S_IRUSR | S_IXUSR)
 
+    logger.info("Done installing {}".format(version))
 
-@assure_state
-def uninstall(args, unknown):
-    if not installed(args.version):
-        print("{} is not installed!".format(args.version))
+
+@cli.command()
+@click.argument("version", required=True, type=str)
+def uninstall(version):
+    """
+    Uninstall the specified Ren'Py version.
+    """
+    assure_state()
+    if not installed(version):
+        logger.error("{} is not installed!".format(version))
         sys.exit(1)
-    instance = get_instance(args.version)
+    instance = get_instance(version)
     remove_from_registry(instance)
     shutil.rmtree(os.path.join(CACHE, instance.path))
 
@@ -402,48 +495,65 @@ def get_libraries(instance):
     return [lib, "-EO", base_file]
 
 
-@assure_state
-def launch(args, unknown):
-    if not installed(args.version):
-        print("{} is not installed!".format(args.version))
-        print("Available versions:")
-        args.available = False
-        args.n = 5
-        list_versions(args, unknown)
+@cli.command(context_settings=dict(ignore_unknown_options=True),
+             help="Launch an installed version of Ren'Py")
+@click.argument("version", required=True, type=str)
+@click.option("-d", "--direct", is_flag=True)
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def launch(version, direct, args):
+    """
+    Launch the specified version of Ren'Py.
+
+    If invoked with default arguments, starts the 'launcher' project,
+    which results in starting up the regular GUI launcher interface.
+
+    If invoked with the --direct flag, grants command-line access to
+    'renpy.py' and hands off all subsequent arguments to its argument parser.
+
+    Launch a project directly:
+        renutil launch <version> -d <path_to_project_directory>
+
+    Build PC / Linux / macOS distributions for a project:
+        renutil launch <version> distribute <path_to_project_directory>
+
+    Build Android distributions for a project:
+        renutil launch <version> android_build <path_to_project_directory> assembleRelease|installDebug
+    """
+    assure_state()
+    if not installed(version):
+        logger.error("{} is not installed!".format(version))
         sys.exit(1)
-    instance = get_instance(args.version)
+    instance = get_instance(version)
     os.environ["SDL_AUDIODRIVER"] = "dummy"
     cmd = get_libraries(instance)
-    if not args.direct:
+    if not direct:
         cmd += [os.path.join(CACHE, instance.launcher_path)]
-    cmd += unknown
+    cmd += args
     try:
-        if args.verbose:
-            print(" ".join(cmd))
+        logger.debug(" ".join(cmd))
         run(cmd)
     except KeyboardInterrupt:
-        call_assure_state()
+        assure_state()
     del os.environ["SDL_AUDIODRIVER"]
 
 
-@assure_state
-def cleanup(args, unknown):
-    if not installed(args.version):
-        print("{} is not installed!".format(args.version))
-        args.available = False
-        args.n = 5
-        list_versions(args, unknown)
+@cli.command()
+@click.argument("version", required=True, type=str)
+def cleanup(version):
+    """
+    Clean temporary files of the specified Ren'Py version.
+    """
+    assure_state()
+    if not installed(version):
+        logger.error("{} is not installed!".format(version))
         sys.exit(1)
-    instance = get_instance(args.version)
+    instance = get_instance(version)
     paths = [os.path.join(instance.path, "tmp"),
-             os.path.join(instance.rapt_path, "assets"), os.path.join(instance.rapt_path, "bin")]
+             os.path.join(instance.rapt_path, "assets"),
+             os.path.join(instance.rapt_path, "bin")]
     for path in paths:
         if os.path.isdir(os.path.join(CACHE, path)):
             shutil.rmtree(os.path.join(CACHE, path))
-
-
-main_description = """
-"""
 
 
 def main():
@@ -456,95 +566,6 @@ def main():
                                      )
     subparsers = parser.add_subparsers()
 
-    parser_list = subparsers.add_parser("list", aliases=["ls"],
-                                        formatter_class=argparse.RawDescriptionHelpFormatter,
-                                        description=textwrap.dedent("""
-                                                    List all installed versions of Ren'Py, or alternatively
-                                                    query available versions from https://renpy.org/dl."""),
-                                        help="List Ren'Py versions.")
-    parser_list.add_argument("-n",
-                             type=int,
-                             default=5,
-                             help="The number of versions to show (default: 5)")
-    parser_list.add_argument("-a", "--available",
-                             action="store_true",
-                             help="Show versions available to be installed")
-    parser_list.set_defaults(func=list_versions)
-
-    parser_install = subparsers.add_parser("install", aliases=["i"],
-                                           formatter_class=argparse.RawDescriptionHelpFormatter,
-                                           description=textwrap.dedent("""
-                                                       Install the specified version of Ren'Py (including RAPT),
-                                                       set up for use via 'renutil launch'."""),
-                                           help="Install a version of Ren'Py.",
-                                           epilog=textwrap.dedent("""
-                                                  This tool will automatically accept the Android SDK licenses for you
-                                                  while installing any version of Ren'Py. If you are no okay with this,
-                                                  you can not use this tool."""))
-    parser_install.add_argument("version", type=str, help="The version to install in SemVer format")
-    parser_install.add_argument("-v", "--verbose", action="store_true", help="Print more information when given")
-    parser_install.set_defaults(func=install)
-
-    parser_uninstall = subparsers.add_parser("uninstall", aliases=["u", "remove", "r", "rm"],
-                                             formatter_class=argparse.RawDescriptionHelpFormatter,
-                                             description=textwrap.dedent("""
-                                                         Uninstall the specified version of Ren'Py, removing
-                                                         all related artifacts and cache objects."""),
-                                             help="Uninstall an installed version of Ren'Py.")
-    parser_uninstall.add_argument("version",
-                                  type=str,
-                                  help="The version to uninstall in SemVer format")
-    parser_uninstall.set_defaults(func=uninstall)
-
-    description = """
-    Launch the specified version of Ren'Py.\n
-    If invoked with default arguments, starts the 'launcher' project,
-    which results in starting up the regular GUI launcher interface.\n
-    If invoked with the --direct flag, grants command-line access to
-    'renpy.py' and hands off all subsequent arguments to its argument parser.\n
-    Launch a project directly:
-        renutil launch <version> -d <path_to_project_directory>\n
-    Build PC / Linux / macOS distributions for a project:
-        renutil launch <version> distribute <path_to_project_directory>\n
-    Build Android distributions for a project:
-        renutil launch <version> android_build <path_to_project_directory> assembleRelease|installDebug
-    """
-
-    # TODO: Android building is currently broken
-    # because of incorrect permissions somewhere
-    parser_launch = subparsers.add_parser("launch", aliases=["l"],
-                                          formatter_class=argparse.RawDescriptionHelpFormatter,
-                                          description=textwrap.dedent(description),
-                                          help="Launch an installed version of Ren'Py.")
-
-    parser_launch.add_argument("version",
-                               type=str,
-                               help="The version to launch in SemVer format")
-    parser_launch.add_argument("-d", "--direct",
-                               action="store_true",
-                               help="Launches the Ren'Py script directly")
-    parser_launch.add_argument("-v", "--verbose", action="store_true", help="Print more information when given")
-    parser_launch.set_defaults(func=launch)
-
-    parser_clear_cache = subparsers.add_parser("cleanup", aliases=["clean", "c"],
-                                               formatter_class=argparse.RawDescriptionHelpFormatter,
-                                               description=textwrap.dedent("""
-                                                           Clean the temporary build artifacts of the specified version of Ren'Py."""),  # noqa: E501
-                                               help="Clean temporary files of the specified Ren'Py version.")
-    parser_clear_cache.add_argument("version",
-                                    type=str,
-                                    help="The version to clean in SemVer format")
-    parser_clear_cache.set_defaults(func=cleanup)
-
-    args, unknown = parser.parse_known_args()
-    if vars(args).get("func", None):
-        try:
-            args.func(args, unknown)
-        except KeyboardInterrupt:
-            tqdm.write("Aborted")
-    else:
-        print("Type 'renutil -h' to see all available actions")
-
 
 if __name__ == '__main__':
-    main()
+    cli()

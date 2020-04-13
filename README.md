@@ -5,14 +5,26 @@ renUtil can install, update, launch and remove instances of Ren'Py. The instance
 
 ## Installation
 renUtil can be installed via pip:
-```
+```bash
 $ pip install renutil
 ```
 
 Please note that renUtil requires Python 3 and will not provide backwards compatibility for Python 2 for the foreseeable future.
 
-## Usage
+Since the Android SDK installation process requires `pygame_sdl2`, this will have to be compiled and installed during the Ren'Py installation process. This process depends on SDL2 headers being installed on the system, which have to be installed through external means.
+
+### MacOS
+```bash
+brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf
 ```
+
+### Linux
+```bash
+sudo apt install libsdl2-dev
+```
+
+## Usage
+```bash
 usage: renutil [-h]
                {list,ls,install,i,uninstall,u,remove,r,rm,launch,l,cleanup,clean,c}
                ...
