@@ -164,7 +164,7 @@ def get_registry(args=None, unknown=None):
         registry = jsonpickle.decode(file.read())
     except JSONDecodeError:
         os.remove(INSTANCE_REGISTRY)
-        call_assure_state()
+        assure_state()
         return None
     return registry
 
@@ -554,17 +554,6 @@ def cleanup(version):
     for path in paths:
         if os.path.isdir(os.path.join(CACHE, path)):
             shutil.rmtree(os.path.join(CACHE, path))
-
-
-def main():
-    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
-                                     description=textwrap.dedent("""
-                                                 A toolkit for managing Ren'Py instances via the command line.\n
-                                                 Various versions of Ren'Py can be installed and launched at
-                                                 the same time and completely independently from each other.\n
-                                                 Instances can be launched with their GUI or CLI-only.""")
-                                     )
-    subparsers = parser.add_subparsers()
 
 
 if __name__ == '__main__':
