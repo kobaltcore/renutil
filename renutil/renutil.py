@@ -4,8 +4,6 @@ import re
 import sys
 import shutil
 import logging
-import textwrap
-import argparse
 import tarfile
 from zipfile import ZipFile
 from stat import S_IRUSR, S_IXUSR
