@@ -578,7 +578,8 @@ def cleanup(version):
     instance = get_instance(version)
     paths = [os.path.join(instance.path, "tmp"),
              os.path.join(instance.rapt_path, "assets"),
-             os.path.join(instance.rapt_path, "bin")]
+             os.path.join(instance.rapt_path, "bin"),
+             os.path.join(instance.rapt_path, "project", "app")]
     for path in paths:
         if os.path.isdir(os.path.join(CACHE, path)):
             shutil.rmtree(os.path.join(CACHE, path))
