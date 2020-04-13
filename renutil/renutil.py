@@ -5,6 +5,7 @@ import sys
 import shutil
 import logging
 import tarfile
+import platform
 from zipfile import ZipFile
 from stat import S_IRUSR, S_IXUSR
 from contextlib import contextmanager
@@ -44,13 +45,12 @@ class AliasedGroup(click.Group):
         rv = click.Group.get_command(self, ctx, cmd_name)
         if rv is not None:
             return rv
-        matches = [x for x in self.list_commands(ctx)
-                   if x.startswith(cmd_name)]
+        matches = [x for x in self.list_commands(ctx) if x.startswith(cmd_name)]
         if not matches:
             return None
         elif len(matches) == 1:
             return click.Group.get_command(self, ctx, matches[0])
-        ctx.fail('Too many matches: %s' % ', '.join(sorted(matches)))
+        ctx.fail("Too many matches: %s".format(", ".join(sorted(matches))))
 
 
 class ComparableVersion():
@@ -245,8 +245,16 @@ def get_installed_versions(args=None, unknown=None):
 
 @click.group(cls=AliasedGroup)
 @click.option("-d/-nd", "--debug/--no-debug", default=False,
-              help="Print debug information or only output warnings")
+              help="Print debug information or only regular output")
 def cli(debug):
+    """
+    Commands can be abbreviated by the shortest unique string.
+
+    For example:\n
+    clean -> c\n
+    la -> launch\n
+    li -> list\n
+    """
     logzero.loglevel(logging.DEBUG if debug else logging.INFO)
 
 
@@ -350,14 +358,22 @@ def get_members_tar(tar):
 
 @cli.command()
 @click.argument("version", required=True, type=str)
-def install(version):
+@click.option("-f", "--force", is_flag=True)
+def install(version, force):
     """
     Install the specified version of Ren'Py (including RAPT).
     """
     assure_state()
-    # if installed(version):
-    #     logger.error("{} is already installed!".format(version))
-    #     sys.exit(1)
+    if installed(version):
+        if force:
+            logger.info("Uninstalling {} before reinstalling...".format(version))
+            instance = get_instance(version)
+            remove_from_registry(instance)
+            shutil.rmtree(os.path.join(CACHE, instance.path))
+            logger.info("Done uninstalling")
+        else:
+            logger.error("{} is already installed!".format(version))
+            sys.exit(1)
     if not valid_version(version):
         logger.error("Invalid version specifier!")
         sys.exit(1)
@@ -398,12 +414,17 @@ def install(version):
 
     logger.info("Installing pygame_sdl2...")
     pygame_path = os.path.join(CACHE, version, "pygame_sdl2")
-    # TODO: Auto-determine this value
-    os.environ["MACOSX_DEPLOYMENT_TARGET"] = "10.15"
+    if platform.mac_ver()[0]:
+        os.environ["MACOSX_DEPLOYMENT_TARGET"] = platform.mac_ver()[0]
     with cd(pygame_path):
         install = Popen(["python2", "setup.py", "install"], stdout=PIPE, stderr=PIPE)
         for line in install.stdout:
             logger.debug(str(line.strip(), "utf-8"))
+        install.communicate()
+        if install.returncode != 0:
+            logger.error("Could not install pygame_sdl2. You may need to install:")
+            logger.error("Linux: sudo apt install libsdl2-dev libpng-dev")
+            logger.error("macOS: brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf libpng")
 
     logger.info("Installing RAPT...")
     os.environ["PGS4A_NO_TERMS"] = "no"
