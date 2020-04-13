@@ -449,6 +449,16 @@ renutil"""], stdout=PIPE)
     for path in paths:
         os.chmod(path, S_IRUSR | S_IXUSR)
 
+    with open(os.path.join(CACHE, instance.rapt_path, "project", "gradle.properties"), "r") as f:
+        original_content = f.readlines()
+
+    with open(os.path.join(CACHE, instance.rapt_path, "project", "gradle.properties"), "w") as f:
+        for line in original_content:
+            if line.startswith("org.gradle.jvmargs"):
+                f.write("org.gradle.jvmargs=-Xmx8g\n")
+            else:
+                f.write(line)
+
     logger.info("Done installing {}".format(version))
 
 
