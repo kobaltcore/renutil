@@ -9,7 +9,7 @@ repository = "https://github.com/kobaltcore/renutil"
 homepage = "https://github.com/kobaltcore/renutil"
 
 [tool.poetry.scripts]
-renutil = "renutil.renutil:main"
+renutil = "renutil.renutil:cli"
 
 [tool.poetry.dependencies]
 python = "^3.5"
