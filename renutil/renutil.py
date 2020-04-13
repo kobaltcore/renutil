@@ -50,7 +50,7 @@ class AliasedGroup(click.Group):
             return None
         elif len(matches) == 1:
             return click.Group.get_command(self, ctx, matches[0])
-        ctx.fail("Too many matches: %s".format(", ".join(sorted(matches))))
+        ctx.fail("Too many matches: {}".format(", ".join(sorted(matches))))
 
 
 class ComparableVersion():
@@ -141,14 +141,14 @@ def scan_instances(path):
 
 def assure_state():
     if not os.path.isdir(CACHE):
-        print("Cache directory does not exist, creating it:\n{}".format(CACHE))
+        logger.debug("Cache directory does not exist, creating it:\n{}".format(CACHE))
         os.mkdir(CACHE)
     if not os.access(CACHE, os.R_OK | os.W_OK):
-        print("Cache directory is not writeable:\n{}\nPlease make sure this script has permission to write to this directory.".format(CACHE))  # noqa: E501
+        logger.debug("Cache directory is not writeable:\n{}\nPlease make sure this script has permission to write to this directory.".format(CACHE))  # noqa: E501
         sys.exit(1)
     instances = scan_instances(CACHE)
     if not os.path.isfile(INSTANCE_REGISTRY):
-        print("Instance registry does not exist, creating it:\n{}".format(INSTANCE_REGISTRY))
+        logger.debug("Instance registry does not exist, creating it:\n{}".format(INSTANCE_REGISTRY))
         with open(INSTANCE_REGISTRY, "w") as f:
             f.write(jsonpickle.encode(instances))
     else:
@@ -220,8 +220,8 @@ def get_available_versions(args=None, unknown=None):
     try:
         r = requests.get("https://www.renpy.org/dl/")
     except:  # noqa: E722
-        print("Could not retrieve version list: No connection could be established.")
-        print("This might mean that you are not connected to the internet or that renpy.org is down.")
+        logger.error("Could not retrieve version list: No connection could be established.")
+        logger.error("This might mean that you are not connected to the internet or that renpy.org is down.")
         sys.exit(1)
     tree = html.fromstring(r.content)
     links = tree.xpath("//a/text()")
@@ -250,10 +250,11 @@ def cli(debug):
     """
     Commands can be abbreviated by the shortest unique string.
 
-    For example:\n
-    clean -> c\n
-    la -> launch\n
-    li -> list\n
+    \b
+    For example:
+        clean -> c
+        la -> launch
+        li -> list
     """
     logzero.loglevel(logging.DEBUG if debug else logging.INFO)
 
@@ -299,7 +300,7 @@ def installed(version):
 def download(url, dest):
     response = requests.head(url)
     if response.status_code == 404:
-        print("The engine package could not be found.")
+        logger.error("The package could not be found.")
         sys.exit(1)
     file_size = int(response.headers.get("Content-Length", -1))
     if os.path.exists(dest):
@@ -491,7 +492,7 @@ def get_libraries(instance):
         root1 = root
         root2 = root
     else:
-        print("Could not detect system architecture. It might not be supported.")
+        logger.error("Could not detect system architecture. It might not be supported.")
         sys.exit(1)
 
     for folder in [root, root1, root2]:
@@ -501,7 +502,7 @@ def get_libraries(instance):
     lib = os.path.join(lib, "renpy")
 
     if not lib:
-        print("Ren'Py platform files not found in '{}'".format(os.path.join(root, "lib", platform)))
+        logger.error("Ren'Py platform files not found in '{}'".format(os.path.join(root, "lib", platform)))
 
     if "LD_LIBRARY_PATH" in os.environ and len(os.environ["LD_LIBRARY_PATH"]) != 0:
         os.environ["LD_LIBRARY_PATH"] = "{}:{}".format(lib, os.environ["LD_LIBRARY_PATH"])
@@ -514,8 +515,7 @@ def get_libraries(instance):
     return [lib, "-EO", base_file]
 
 
-@cli.command(context_settings=dict(ignore_unknown_options=True),
-             help="Launch an installed version of Ren'Py")
+@cli.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("version", required=True, type=str)
 @click.option("-d", "--direct", is_flag=True)
 @click.argument("args", nargs=-1, type=click.UNPROCESSED)
@@ -529,12 +529,15 @@ def launch(version, direct, args):
     If invoked with the --direct flag, grants command-line access to
     'renpy.py' and hands off all subsequent arguments to its argument parser.
 
+    \b
     Launch a project directly:
         renutil launch <version> -d <path_to_project_directory>
 
+    \b
     Build PC / Linux / macOS distributions for a project:
         renutil launch <version> distribute <path_to_project_directory>
 
+    \b
     Build Android distributions for a project:
         renutil launch <version> android_build <path_to_project_directory> assembleRelease|installDebug
     """
