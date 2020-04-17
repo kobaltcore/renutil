@@ -25,23 +25,27 @@ sudo apt install libsdl2-dev
 
 ## Usage
 ```bash
-usage: renutil [-h]
-               {list,ls,install,i,uninstall,u,remove,r,rm,launch,l,cleanup,clean,c}
-               ...
+Usage: renutil [OPTIONS] COMMAND [ARGS]...
 
-A toolkit for managing Ren'Py instances via the command line.
+  Commands can be abbreviated by the shortest unique string.
 
-positional arguments:
-  {list,ls,install,i,uninstall,u,remove,r,rm,launch,l,cleanup,clean,c}
-    list (ls)           List Ren'Py versions.
-    install (i)         Install a version of Ren'Py.
-    uninstall (u, remove, r, rm)
-                        Uninstall an installed version of Ren'Py.
-    launch (l)          Launch an installed version of Ren'Py.
-    cleanup (clean, c)  Clean temporary files of the specified Ren'Py version.
+  For example:
+      clean -> c
+      la -> launch
+      li -> list
 
-optional arguments:
-  -h, --help            show this help message and exit
+Options:
+  -d, --debug / -nd, --no-debug  Print debug information or only regular
+                                 output
+
+  --help                         Show this message and exit.
+
+Commands:
+  cleanup    Clean temporary files of the specified Ren'Py version.
+  install    Install the specified version of Ren'Py (including RAPT).
+  launch     Launch the specified version of Ren'Py.
+  list       List all available versions of Ren'Py.
+  uninstall  Uninstall the specified Ren'Py version.
 ```
 
 # Disclaimer
