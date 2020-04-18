@@ -2,6 +2,7 @@
 import os
 import re
 import sys
+import pickle
 import shutil
 import logging
 import tarfile
@@ -10,7 +11,6 @@ from zipfile import ZipFile
 from stat import S_IRUSR, S_IXUSR
 from contextlib import contextmanager
 from subprocess import run, PIPE, Popen
-from json.decoder import JSONDecodeError
 
 ### Logging ###
 import logzero
@@ -23,7 +23,6 @@ import click
 import requests
 
 ### Parsing ###
-import jsonpickle
 from lxml import html
 from bs4 import BeautifulSoup
 from semantic_version import Version
@@ -33,10 +32,6 @@ from tqdm import tqdm
 
 
 semver = re.compile(r"^((0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?)/?$")  # noqa: E501
-
-
-CACHE = os.path.join(os.path.expanduser("~"), ".renutil")
-INSTANCE_REGISTRY = os.path.join(CACHE, "index.json")
 
 
 class AliasedGroup(click.Group):
@@ -104,6 +99,82 @@ class RenpyRelease(ComparableVersion):
         return "RenpyRelease(version={}, url='{}')".format(self.version, self.url)
 
 
+class Registry():
+
+    def __init__(self, filename):
+        self.filename = filename
+        self.instances = []
+
+    def load(self):
+        if not os.path.isfile(self.filename):
+            self.persist()
+        with open(self.filename, "rb") as f:
+            self.instances = pickle.load(f)
+
+    def persist(self):
+        with open(self.filename, "wb") as f:
+            pickle.dump(self.instances, f)
+
+    def clear(self):
+        self.instances = []
+        self.persist()
+
+    def add_instance(self, instance):
+        self.load()
+        if instance in self.instances:
+            return
+
+        self.instances.append(instance)
+
+        self.persist()
+
+    def remove_instance(self, instance):
+        self.load()
+        if instance not in self.instances:
+            return
+
+        for i, inst in enumerate(self.instances):
+            if inst.version == instance.version:
+                del self.instances[i]
+
+        self.persist()
+
+    def get_instance(self, version):
+        self.load()
+        if isinstance(version, str):
+            try:
+                version = Version(version)
+            except ValueError:
+                return None
+
+        for instance in self.instances:
+            if instance.version == version:
+                return instance
+
+        return None
+
+    def installed(self, version):
+        self.load()
+        if isinstance(version, str):
+            try:
+                version = Version(version)
+            except ValueError:
+                return False
+
+        for instance in self.instances:
+            if instance.version == version:
+                return True
+
+        return False
+
+    def __iter__(self):
+        return iter(self.instances)
+
+
+CACHE = os.path.join(os.path.expanduser("~"), ".renutil")
+REGISTRY = Registry(os.path.join(CACHE, "index.bin"))
+
+
 @contextmanager
 def cd(dir):
     prevdir = os.getcwd()
@@ -147,54 +218,9 @@ def assure_state():
         logger.debug("Cache directory is not writeable:\n{}\nPlease make sure this script has permission to write to this directory.".format(CACHE))  # noqa: E501
         sys.exit(1)
     instances = scan_instances(CACHE)
-    if not os.path.isfile(INSTANCE_REGISTRY):
-        logger.debug("Instance registry does not exist, creating it:\n{}".format(INSTANCE_REGISTRY))
-        with open(INSTANCE_REGISTRY, "w") as f:
-            f.write(jsonpickle.encode(instances))
-    else:
-        for instance in instances:
-            add_to_registry(instance)
-
-
-def get_registry(args=None, unknown=None):
-    file = open(INSTANCE_REGISTRY, "r")
-    try:
-        registry = jsonpickle.decode(file.read())
-    except JSONDecodeError:
-        os.remove(INSTANCE_REGISTRY)
-        assure_state()
-        return None
-    return registry
-
-
-def remove_from_registry(instance):
-    registry = get_registry()
-    for i, inst in enumerate(registry):
-        if inst.version == instance.version:
-            del registry[i]
-    with open(INSTANCE_REGISTRY, "w") as f:
-        f.write(jsonpickle.encode(registry))
-
-
-def add_to_registry(instance):
-    registry = get_registry()
-    if instance not in registry:
-        registry.append(instance)
-        with open(INSTANCE_REGISTRY, "w") as f:
-            f.write(jsonpickle.encode(registry))
-
-
-def get_instance(version):
-    if isinstance(version, str):
-        try:
-            version = Version(version)
-        except ValueError:
-            return None
-    registry = get_registry()
-    for instance in registry:
-        if instance.version == version:
-            return instance
-    return None
+    REGISTRY.clear()
+    for instance in instances:
+        REGISTRY.add_instance(instance)
 
 
 def valid_version(version):
@@ -203,8 +229,8 @@ def valid_version(version):
             version = Version(version)
         except ValueError:
             return False
-    registry = get_registry()
-    for instance in registry:
+    # registry = get_registry()
+    for instance in REGISTRY:
         if instance.version == version:
             return True
     releases = get_available_versions()
@@ -240,12 +266,11 @@ def get_available_versions(args=None, unknown=None):
 
 
 def get_installed_versions(args=None, unknown=None):
-    return sorted(get_registry(), reverse=True)
+    return sorted(REGISTRY, reverse=True)
 
 
 @click.group(cls=AliasedGroup)
-@click.option("-d/-nd", "--debug/--no-debug", default=False,
-              help="Print debug information or only regular output")
+@click.option("-d", "--debug", is_flag=True)
 def cli(debug):
     """Commands can be abbreviated by the shortest unique string.
 
@@ -281,18 +306,6 @@ def list(show_all, count):
         else:
             for release in instances[:count]:
                 click.echo(release.version)
-
-
-def installed(version):
-    if isinstance(version, str):
-        try:
-            version = Version(version)
-        except ValueError:
-            return False
-    for instance in get_registry():
-        if instance.version == version:
-            return True
-    return False
 
 
 def download(url, dest):
@@ -362,11 +375,11 @@ def install(version, force):
     """Install the specified version of Ren'Py (including RAPT).
     """
     assure_state()
-    if installed(version):
+    if REGISTRY.installed(version):
         if force:
             logger.info("Uninstalling {} before reinstalling...".format(version))
-            instance = get_instance(version)
-            remove_from_registry(instance)
+            instance = REGISTRY.get_instance(version)
+            REGISTRY.remove_instance(instance)
             shutil.rmtree(os.path.join(CACHE, instance.path))
             logger.info("Done uninstalling")
         else:
@@ -439,7 +452,7 @@ renutil"""], stdout=PIPE)
 
     logger.info("Registering instance...")
     instance = RenpyInstance(version, version)
-    add_to_registry(instance)
+    REGISTRY.add_instance(instance)
 
     head, _ = os.path.split(get_libraries(instance)[0])
     paths = [os.path.join(head, "python"), os.path.join(head, "pythonw"),
@@ -468,11 +481,11 @@ def uninstall(version):
     """Uninstall the specified Ren'Py version.
     """
     assure_state()
-    if not installed(version):
+    if not REGISTRY.installed(version):
         logger.error("{} is not installed!".format(version))
         sys.exit(1)
-    instance = get_instance(version)
-    remove_from_registry(instance)
+    instance = REGISTRY.get_instance(version)
+    REGISTRY.remove_instance(instance)
     shutil.rmtree(os.path.join(CACHE, instance.path))
 
 
@@ -549,10 +562,10 @@ def launch(version, direct, args):
         renutil launch <version> android_build <path_to_project_directory> assembleRelease|installDebug
     """
     assure_state()
-    if not installed(version):
+    if not REGISTRY.installed(version):
         logger.error("{} is not installed!".format(version))
         sys.exit(1)
-    instance = get_instance(version)
+    instance = REGISTRY.get_instance(version)
     os.environ["SDL_AUDIODRIVER"] = "dummy"
     cmd = get_libraries(instance)
     if not direct:
@@ -572,10 +585,10 @@ def cleanup(version):
     """Clean temporary files of the specified Ren'Py version.
     """
     assure_state()
-    if not installed(version):
+    if not REGISTRY.installed(version):
         logger.error("{} is not installed!".format(version))
         sys.exit(1)
-    instance = get_instance(version)
+    instance = REGISTRY.get_instance(version)
     paths = [os.path.join(instance.path, "tmp"),
              os.path.join(instance.rapt_path, "assets"),
              os.path.join(instance.rapt_path, "bin"),
