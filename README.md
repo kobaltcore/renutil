@@ -1,4 +1,7 @@
 # renUtil
+[![CircleCI](https://circleci.com/gh/kobaltcore/renutil.svg?style=svg)](https://circleci.com/gh/kobaltcore/renutil)
+[![Downloads](https://pepy.tech/badge/renutil)](https://pepy.tech/project/renutil)
+
 A toolkit for managing Ren'Py instances via the command line.
 
 renUtil can install, update, launch and remove instances of Ren'Py. The instances are completely independent from each other. It automatically sets up and configures RAPT so new instances are instantly ready to deploy to many different platforms. Best of all, renUtil automatically configures Ren'Py in such a way that you can run it headless, making it well suited for build servers and continuous integration pipelines.
