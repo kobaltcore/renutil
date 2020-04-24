@@ -19,6 +19,12 @@ commands:
       #       poetry run codecov -t "${CODECOV_TOKEN}"
 
 jobs:
+  test-38:
+    docker:
+      - image: circleci/python:3.8
+    steps:
+      - checkout
+      - build-and-test
   test-37:
     docker:
       - image: circleci/python:3.7
@@ -40,7 +46,7 @@ jobs:
 
   deploy:
     docker:
-      - image: circleci/python:3.7
+      - image: circleci/python:3.8
     steps:
       - checkout
       - run:
@@ -53,12 +59,19 @@ workflows:
 
     test-workflow:
       jobs:
+        - test-38
         - test-37
         - test-36
         - test-35
 
     deploy-workflow:
       jobs:
+        - test-38:
+            filters:
+              tags:
+                only: /v[0-9]+(\.[0-9]+)*/
+              branches:
+                ignore: /.*/
         - test-37:
             filters:
               tags:
@@ -79,6 +92,7 @@ workflows:
                 ignore: /.*/
         - deploy:
             requires:
+              - test-38
               - test-37
               - test-36
               - test-35
