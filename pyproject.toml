@@ -19,7 +19,6 @@ tqdm = "^4.45.0"
 click = "^7.1.1"
 logzero = "^1.5.0"
 requests = "^2.23.0"
-beautifulsoup4 = "^4.9.0"
 
 [tool.poetry.dev-dependencies]
 flake8 = "^3.7"

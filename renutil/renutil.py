@@ -5,8 +5,6 @@ import sys
 import pickle
 import shutil
 import logging
-import tarfile
-import platform
 from zipfile import ZipFile
 from stat import S_IRUSR, S_IXUSR
 from contextlib import contextmanager
@@ -24,7 +22,6 @@ import requests
 
 ### Parsing ###
 from lxml import html
-from bs4 import BeautifulSoup
 from semantic_version import Version
 
 ### Display ###
@@ -393,62 +390,55 @@ def install(version, force):
     sdk_filename = "renpy-{}-sdk.zip".format(version)
     rapt_filename = "renpy-{}-rapt.zip".format(version)
 
-    r = requests.get("https://www.renpy.org/dl/{}".format(version))
-
-    PYGAME_URL = None
-    soup = BeautifulSoup(r.content, "html.parser")
-    for link in soup.find_all("a"):
-        href = link.get("href")
-        if href.startswith("pygame_sdl2"):
-            pygame_filename = href
-            break
-
-    if not pygame_filename:
-        logger.error("Could not find pygame_sdl2 package.")
-        sys.exit(1)
-
     SDK_URL = "https://www.renpy.org/dl/{}/{}".format(version, sdk_filename)
     RAPT_URL = "https://www.renpy.org/dl/{}/{}".format(version, rapt_filename)
-    PYGAME_URL = "https://www.renpy.org/dl/{}/{}".format(version, pygame_filename)
 
     download(SDK_URL, os.path.join(CACHE, sdk_filename))
     download(RAPT_URL, os.path.join(CACHE, rapt_filename))
-    download(PYGAME_URL, os.path.join(CACHE, pygame_filename))
 
     logger.info("Extracting files...")
     sdk_zip = ZipFile(os.path.join(CACHE, sdk_filename), "r")
     rapt_zip = ZipFile(os.path.join(CACHE, rapt_filename), "r")
-    pygame_tar = tarfile.open(os.path.join(CACHE, pygame_filename), "r")
     sdk_zip.extractall(path=os.path.join(CACHE, version), members=get_members_zip(sdk_zip))
     rapt_zip.extractall(path=os.path.join(CACHE, version, "rapt"), members=get_members_zip(rapt_zip))
-    pygame_tar.extractall(path=os.path.join(CACHE, version, "pygame_sdl2"), members=get_members_tar(pygame_tar))
-
-    logger.info("Installing pygame_sdl2...")
-    pygame_path = os.path.join(CACHE, version, "pygame_sdl2")
-    if platform.mac_ver()[0]:
-        os.environ["MACOSX_DEPLOYMENT_TARGET"] = platform.mac_ver()[0]
-    with cd(pygame_path):
-        install = Popen(["python2", "setup.py", "install"], stdout=PIPE, stderr=PIPE)
-        for line in install.stdout:
-            logger.debug(str(line.strip(), "utf-8"))
-        install.communicate()
-        if install.returncode != 0:
-            logger.error("Could not install pygame_sdl2. You may need to install:")
-            logger.error("Linux: sudo apt install libsdl2-dev libpng-dev")
-            logger.error("macOS: brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf libpng")
 
     logger.info("Installing RAPT...")
-    os.environ["PGS4A_NO_TERMS"] = "no"
     rapt_path = os.path.join(CACHE, version, "rapt")
+
+    arch = get_platform()
+    python_path = os.path.join(CACHE, version, "lib", arch, "python")
+    os.chmod(python_path, S_IRUSR | S_IXUSR)
+    site_package_path = os.path.join(CACHE, version, "lib", arch, "lib", "python2.7")
+
+    with cd(rapt_path):
+        with open("android.py", "r") as f:
+            data = f.readlines()
+
+        found_sys_import = False
+        with open("android.py", "w") as f:
+            for line in data:
+                if found_sys_import:
+                    f.write(line)
+                    f.write("sys.path.insert(0, '{}')\n".format(site_package_path))
+                    f.write("\nimport ssl\n")
+                    f.write("ssl._create_default_https_context = ssl._create_unverified_context\n")
+                    found_sys_import = False
+                else:
+                    f.write(line)
+                if line.startswith("import sys"):
+                    found_sys_import = True
+
+    os.environ["RAPT_NO_TERMS"] = "no"
     with cd(rapt_path):
         echo = Popen(["echo", """Y
 Y
 Y
 renutil"""], stdout=PIPE)
-        install = Popen(["python2", "android.py", "installsdk"], stdin=echo.stdout, stdout=PIPE)
+        install = Popen([python_path, "-O", "android.py", "installsdk"],
+                        stdin=echo.stdout, stdout=PIPE)
         for line in install.stdout:
             logger.debug(str(line.strip(), "utf-8"))
-    del os.environ["PGS4A_NO_TERMS"]
+    del os.environ["RAPT_NO_TERMS"]
 
     logger.info("Registering instance...")
     instance = RenpyInstance(version, version)
@@ -489,27 +479,36 @@ def uninstall(version):
     shutil.rmtree(os.path.join(CACHE, instance.path))
 
 
-def get_libraries(instance):
+def get_platform():
     info = os.uname()
-    platform = "{}-{}".format(info.sysname, info.machine)
+
+    if "Darwin" in info.sysname:
+        return "darwin-x86_64"
+    elif "x86_64" in info.machine or "amd64" in info.machine:
+        return "linux-x86_64"
+    elif re.match(r"i.*86", info.machine):
+        return "linux-i686"
+    elif "Linux" in info.sysname:
+        return "linux-{}".format(info.machine)
+
+
+def get_libraries(instance):
     root = instance.path
     root1 = root
     root2 = root
     lib = None
-    if "Darwin" in info.sysname:
-        platform = "darwin-x86_64"
+    arch = get_platform()
+
+    if arch == "darwin-x86_64":
         root1 = root + "/../Resources/autorun"
         root2 = root + "/../../.."
-    elif "x86_64" in info.machine or "amd64" in info.machine:
-        platform = "linux-x86_64"
+    elif arch == "linux-x86_64":
         root1 = root
         root2 = root
-    elif re.match(r"i.*86", info.machine):
-        platform = "linux-i686"
+    elif arch == "linux-i686":
         root1 = root
         root2 = root
-    elif "Linux" in info.sysname:
-        platform = "linux-{}".format(info.machine)
+    elif arch.startswith("linux-"):
         root1 = root
         root2 = root
     else:
@@ -517,13 +516,13 @@ def get_libraries(instance):
         sys.exit(1)
 
     for folder in [root, root1, root2]:
-        lib = os.path.join(CACHE, folder, "lib", platform)
+        lib = os.path.join(CACHE, folder, "lib", arch)
         if os.path.isdir(lib):
             break
     lib = os.path.join(lib, "renpy")
 
     if not lib:
-        logger.error("Ren'Py platform files not found in '{}'".format(os.path.join(root, "lib", platform)))
+        logger.error("Ren'Py platform files not found in '{}'".format(os.path.join(root, "lib", arch)))
 
     if "LD_LIBRARY_PATH" in os.environ and len(os.environ["LD_LIBRARY_PATH"]) != 0:
         os.environ["LD_LIBRARY_PATH"] = "{}:{}".format(lib, os.environ["LD_LIBRARY_PATH"])

@@ -14,18 +14,6 @@ $ pip install renutil
 
 Please note that renUtil requires Python 3 and will not provide backwards compatibility for Python 2 for the foreseeable future.
 
-Since the Android SDK installation process requires `pygame_sdl2`, this will have to be compiled and installed during the Ren'Py installation process. This process depends on SDL2 headers being installed on the system, which have to be installed through external means.
-
-### macOS
-```bash
-brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf
-```
-
-### Linux
-```bash
-sudo apt install libsdl2-dev
-```
-
 ## Usage
 ```bash
 Usage: renutil [OPTIONS] COMMAND [ARGS]...
