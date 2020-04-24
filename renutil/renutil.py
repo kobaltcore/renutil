@@ -560,6 +560,10 @@ def launch(version, direct, args):
     \b
     Build Android distributions for a project:
         renutil launch <version> android_build <path_to_project_directory> assembleRelease|installDebug
+
+    \b
+    Lint a project:
+        renutil launch -d <version> <path_to_project_directory> lint
     """
     assure_state()
     if not REGISTRY.installed(version):
