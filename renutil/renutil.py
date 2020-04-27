@@ -9,7 +9,7 @@ import platform
 from zipfile import ZipFile
 from stat import S_IRUSR, S_IXUSR
 from contextlib import contextmanager
-from subprocess import run, PIPE, Popen
+from subprocess import run, PIPE, STDOUT, Popen
 
 ### Logging ###
 import logzero
@@ -366,6 +366,27 @@ def get_members_tar(tar):
             yield tarinfo
 
 
+def patch_file(file, target_line, patch, reverse=False):
+    with open(file, "r") as f:
+        data = f.readlines()
+
+    found = False
+    with open(file, "w") as f:
+        for line in data:
+            if found:
+                if reverse:
+                    f.write(line)
+                    f.write(patch)
+                else:
+                    f.write(patch)
+                    f.write(line)
+                found = False
+            else:
+                f.write(line)
+            if target_line in line:
+                found = True
+
+
 @cli.command()
 @click.argument("version", required=True, type=str)
 @click.option("-f", "--force", is_flag=True)
@@ -407,38 +428,33 @@ def install(version, force):
     rapt_path = os.path.join(CACHE, version, "rapt")
 
     arch = get_platform()
-    python_path = os.path.join(CACHE, version, "lib", arch, "python")
-    os.chmod(python_path, S_IRUSR | S_IXUSR)
+    if arch == "windows-i686":
+        python_path = os.path.join(CACHE, version, "lib", arch, "python.exe")
+    else:
+        python_path = os.path.join(CACHE, version, "lib", arch, "python")
+        os.chmod(python_path, S_IRUSR | S_IXUSR)
     site_package_path = os.path.join(CACHE, version, "lib", arch, "lib", "python2.7")
 
     with cd(rapt_path):
-        with open("android.py", "r") as f:
-            data = f.readlines()
+        patch = "sys.path.insert(0, '{}')\n\nimport ssl\nssl._create_default_https_context = ssl._create_unverified_context\n".format(site_package_path)  # noqa: E501
+        patch_file("android.py", "import sys", patch, reverse=True)
 
-        found_sys_import = False
-        with open("android.py", "w") as f:
-            for line in data:
-                if found_sys_import:
-                    f.write(line)
-                    f.write("sys.path.insert(0, '{}')\n".format(site_package_path))
-                    f.write("\nimport ssl\n")
-                    f.write("ssl._create_default_https_context = ssl._create_unverified_context\n")
-                    found_sys_import = False
-                else:
-                    f.write(line)
-                if line.startswith("import sys"):
-                    found_sys_import = True
+        patch_file(os.path.join("buildlib", "rapt", "interface.py"),
+                   "def yesno_choice(self, prompt, default=None):",
+                   "        return True\n")
+
+        patch_file(os.path.join("buildlib", "rapt", "interface.py"),
+                   "def input(self, prompt, empty=None):",
+                   "        return \"renutil\"\n")
 
     os.environ["RAPT_NO_TERMS"] = "no"
     with cd(rapt_path):
-        echo = Popen(["echo", """Y
-Y
-Y
-renutil"""], stdout=PIPE)
-        install = Popen([python_path, "-O", "android.py", "installsdk"],
-                        stdin=echo.stdout, stdout=PIPE)
+        logger.debug("Running {}".format(" ".join((python_path, "-O", "android.py", "installsdk"))))
+        install = Popen([python_path, "-O", "android.py", "installsdk"], stdout=PIPE, stderr=STDOUT)
         for line in install.stdout:
-            logger.debug(str(line.strip(), "utf-8"))
+            line = line.strip()
+            if line:
+                logger.debug(str(line, "latin-1"))
     del os.environ["RAPT_NO_TERMS"]
 
     logger.info("Registering instance...")
@@ -446,12 +462,13 @@ renutil"""], stdout=PIPE)
     REGISTRY.add_instance(instance)
 
     head, _ = os.path.split(get_libraries(instance)[0])
-    paths = [os.path.join(head, "python"), os.path.join(head, "pythonw"),
-             os.path.join(head, "renpy"), os.path.join(head, "zsync"),
-             os.path.join(head, "zsyncmake"),
-             os.path.join(CACHE, instance.rapt_path, "project", "gradlew")]
-    for path in paths:
-        os.chmod(path, S_IRUSR | S_IXUSR)
+    if arch != "windows-i686":
+        paths = [os.path.join(head, "python"), os.path.join(head, "pythonw"),
+                 os.path.join(head, "renpy"), os.path.join(head, "zsync"),
+                 os.path.join(head, "zsyncmake"),
+                 os.path.join(CACHE, instance.rapt_path, "project", "gradlew")]
+        for path in paths:
+            os.chmod(path, S_IRUSR | S_IXUSR)
 
     with open(os.path.join(CACHE, instance.rapt_path, "project", "gradle.properties"), "r") as f:
         original_content = f.readlines()
@@ -506,6 +523,9 @@ def get_libraries(instance):
     if arch == "darwin-x86_64":
         root1 = root + "/../Resources/autorun"
         root2 = root + "/../../.."
+    elif arch == "windows-i686":
+        root1 = root
+        root2 = root
     elif arch == "linux-x86_64":
         root1 = root
         root2 = root
@@ -523,7 +543,10 @@ def get_libraries(instance):
         lib = os.path.join(CACHE, folder, "lib", arch)
         if os.path.isdir(lib):
             break
-    lib = os.path.join(lib, "renpy")
+    if arch == "windows-i686":
+        lib = os.path.join(lib, "renpy.exe")
+    else:
+        lib = os.path.join(lib, "renpy")
 
     if not lib:
         logger.error("Ren'Py platform files not found in '{}'".format(os.path.join(root, "lib", arch)))
