@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "renutil"
-version = "1.8.0"
+version = "1.8.1"
 description = "A toolkit for managing Ren'Py instances via the command line"
 authors = ["CobaltCore <cobaltcore@yandex.com>"]
 license = "MIT"
