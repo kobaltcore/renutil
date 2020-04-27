@@ -5,6 +5,7 @@ import sys
 import pickle
 import shutil
 import logging
+import platform
 from zipfile import ZipFile
 from stat import S_IRUSR, S_IXUSR
 from contextlib import contextmanager
@@ -480,16 +481,19 @@ def uninstall(version):
 
 
 def get_platform():
-    info = os.uname()
+    logger.debug("System: {}".format(platform.system()))
+    logger.debug("Machine: {}".format(platform.machine()))
 
-    if "Darwin" in info.sysname:
+    if "Darwin" in platform.system():
         return "darwin-x86_64"
-    elif "x86_64" in info.machine or "amd64" in info.machine:
+    elif "Windows" in platform.system():
+        return "windows-i686"
+    elif "x86_64" in platform.machine() or "amd64" in platform.machine():
         return "linux-x86_64"
-    elif re.match(r"i.*86", info.machine):
+    elif re.match(r"i.*86", platform.machine()):
         return "linux-i686"
-    elif "Linux" in info.sysname:
-        return "linux-{}".format(info.machine)
+    elif "Linux" in platform.system():
+        return "linux-{}".format(platform.machine())
 
 
 def get_libraries(instance):
