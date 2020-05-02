@@ -169,10 +169,6 @@ class Registry():
         return iter(self.instances)
 
 
-CACHE = os.path.join(os.path.expanduser("~"), ".renutil")
-REGISTRY = Registry(os.path.join(CACHE, "index.bin"))
-
-
 @contextmanager
 def cd(dir):
     prevdir = os.getcwd()
@@ -269,7 +265,9 @@ def get_installed_versions(args=None, unknown=None):
 
 @click.group(cls=AliasedGroup)
 @click.option("-d", "--debug", is_flag=True)
-def cli(debug):
+@click.option("-r", "--registry", default=None, type=str,
+              help="The path to store Ren'Py instances in")
+def cli(debug, registry):
     """Commands can be abbreviated by the shortest unique string.
 
     \b
@@ -278,6 +276,18 @@ def cli(debug):
         la -> launch
         li -> list
     """
+    global CACHE, REGISTRY
+
+    if registry:
+        registry = os.path.abspath(registry)
+        os.makedirs(registry, exist_ok=True)
+        CACHE = registry
+    else:
+        CACHE = os.path.join(os.path.expanduser("~"), ".renutil")
+    REGISTRY = Registry(os.path.join(CACHE, "index.bin"))
+
+    logger.debug("Registry Location: {}".format(CACHE))
+
     logzero.loglevel(logging.DEBUG if debug else logging.INFO)
 
 
