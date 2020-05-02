@@ -278,6 +278,8 @@ def cli(debug, registry):
     """
     global CACHE, REGISTRY
 
+    logzero.loglevel(logging.DEBUG if debug else logging.INFO)
+
     if registry:
         registry = os.path.abspath(registry)
         os.makedirs(registry, exist_ok=True)
@@ -287,8 +289,6 @@ def cli(debug, registry):
     REGISTRY = Registry(os.path.join(CACHE, "index.bin"))
 
     logger.debug("Registry Location: {}".format(CACHE))
-
-    logzero.loglevel(logging.DEBUG if debug else logging.INFO)
 
 
 @cli.command()
