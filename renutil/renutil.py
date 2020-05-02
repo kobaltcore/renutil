@@ -412,8 +412,8 @@ def install(version, force):
             shutil.rmtree(os.path.join(CACHE, instance.path))
             logger.info("Done uninstalling")
         else:
-            logger.error("{} is already installed!".format(version))
-            sys.exit(1)
+            logger.warning("{} is already installed!".format(version))
+            sys.exit(0)
     if not valid_version(version):
         logger.error("Invalid version specifier!")
         sys.exit(1)
