@@ -11,7 +11,7 @@ commands:
       - run:
           name: "Lint library and tests"
           command: |
-            poetry run flake8 renutil tests
+            poetry run flake8 renutil
       # - run:
       #     name: "Run unit tests and coverage"
       #     command: |
