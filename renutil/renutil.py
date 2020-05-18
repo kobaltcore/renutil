@@ -476,14 +476,14 @@ def install(version, force):
         paths = [os.path.join(head, "python"), os.path.join(head, "pythonw"),
                  os.path.join(head, "renpy"), os.path.join(head, "zsync"),
                  os.path.join(head, "zsyncmake"),
-                 os.path.join(CACHE, instance.rapt_path, "project", "gradlew")]
+                 os.path.join(CACHE, instance.rapt_path, "prototype", "gradlew")]
         for path in paths:
             os.chmod(path, S_IRUSR | S_IXUSR)
 
-    with open(os.path.join(CACHE, instance.rapt_path, "project", "gradle.properties"), "r") as f:
+    with open(os.path.join(CACHE, instance.rapt_path, "prototype", "gradle.properties"), "r") as f:
         original_content = f.readlines()
 
-    with open(os.path.join(CACHE, instance.rapt_path, "project", "gradle.properties"), "w") as f:
+    with open(os.path.join(CACHE, instance.rapt_path, "prototype", "gradle.properties"), "w") as f:
         for line in original_content:
             if line.startswith("org.gradle.jvmargs"):
                 f.write("org.gradle.jvmargs=-Xmx8g\n")
