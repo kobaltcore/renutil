@@ -223,7 +223,6 @@ def valid_version(version):
             version = Version(version)
         except ValueError:
             return False
-    # registry = get_registry()
     for instance in REGISTRY:
         if instance.version == version:
             return True
@@ -314,6 +313,29 @@ def list(show_all, count):
         else:
             for release in instances[:count]:
                 click.echo(release.version)
+
+
+@cli.command()
+@click.argument("version", required=True, type=str)
+def show(version):
+    """Show detailed information about an installed version of Ren'Py.
+    """
+    assure_state()
+    if not valid_version(version):
+        logger.error("Invalid version specifier!")
+        sys.exit(1)
+    if not REGISTRY.installed(version):
+        logger.error("Version {} is not installed!".format(version))
+        sys.exit(1)
+    instance = REGISTRY.get_instance(version)
+    click.echo("Version: {}".format(version))
+    click.echo("Install Location: {}".format(os.path.join(CACHE, instance.path)))
+    sdk_filename = "renpy-{}-sdk.zip".format(version)
+    rapt_filename = "renpy-{}-rapt.zip".format(version)
+    SDK_URL = "https://www.renpy.org/dl/{}/{}".format(version, sdk_filename)
+    RAPT_URL = "https://www.renpy.org/dl/{}/{}".format(version, rapt_filename)
+    click.echo("SDK Url: {}".format(SDK_URL))
+    click.echo("RAPT Url: {}".format(RAPT_URL))
 
 
 def download(url, dest):
