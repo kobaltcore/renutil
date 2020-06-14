@@ -503,15 +503,17 @@ def install(version, force):
         for path in paths:
             os.chmod(path, S_IRUSR | S_IXUSR)
 
-    with open(os.path.join(CACHE, instance.rapt_path, "prototype", "gradle.properties"), "r") as f:
-        original_content = f.readlines()
+    for path in (os.path.join(CACHE, instance.rapt_path, "prototype", "gradle.properties"),
+                 os.path.join(CACHE, instance.rapt_path, "project", "gradle.properties")):
+        with open(path, "r") as f:
+            original_content = f.readlines()
 
-    with open(os.path.join(CACHE, instance.rapt_path, "prototype", "gradle.properties"), "w") as f:
-        for line in original_content:
-            if line.startswith("org.gradle.jvmargs"):
-                f.write("org.gradle.jvmargs=-Xmx8g\n")
-            else:
-                f.write(line)
+        with open(path, "w") as f:
+            for line in original_content:
+                if line.startswith("org.gradle.jvmargs"):
+                    f.write("org.gradle.jvmargs=-Xmx8g\n")
+                else:
+                    f.write(line)
 
     logger.info("Done installing {}".format(version))
 
