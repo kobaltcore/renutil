@@ -498,7 +498,8 @@ def install(version, force):
         paths = [os.path.join(head, "python"), os.path.join(head, "pythonw"),
                  os.path.join(head, "renpy"), os.path.join(head, "zsync"),
                  os.path.join(head, "zsyncmake"),
-                 os.path.join(CACHE, instance.rapt_path, "prototype", "gradlew")]
+                 os.path.join(CACHE, instance.rapt_path, "prototype", "gradlew"),
+                 os.path.join(CACHE, instance.rapt_path, "project", "gradlew")]
         for path in paths:
             os.chmod(path, S_IRUSR | S_IXUSR)
 
