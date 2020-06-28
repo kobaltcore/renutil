@@ -1,1 +1,1 @@
-from .renutil import cli
+from .renutil import cli  # noqa: F401
