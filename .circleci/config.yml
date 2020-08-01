@@ -37,12 +37,6 @@ jobs:
     steps:
       - checkout
       - build-and-test
-  test-35:
-    docker:
-      - image: circleci/python:3.5
-    steps:
-      - checkout
-      - build-and-test
 
   deploy:
     docker:
@@ -62,7 +56,6 @@ workflows:
         - test-38
         - test-37
         - test-36
-        - test-35
 
     deploy-workflow:
       jobs:
@@ -84,18 +77,11 @@ workflows:
                 only: /v[0-9]+(\.[0-9]+)*/
               branches:
                 ignore: /.*/
-        - test-35:
-            filters:
-              tags:
-                only: /v[0-9]+(\.[0-9]+)*/
-              branches:
-                ignore: /.*/
         - deploy:
             requires:
               - test-38
               - test-37
               - test-36
-              - test-35
             filters:
               tags:
                 only: /v[0-9]+(\.[0-9]+)*/
