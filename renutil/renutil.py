@@ -29,11 +29,12 @@ from semantic_version import Version
 from tqdm import tqdm
 
 
-semver = re.compile(r"^((0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?)/?$")  # noqa: E501
+semver = re.compile(
+    r"^((0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?)/?$"
+)  # noqa: E501
 
 
 class AliasedGroup(click.Group):
-
     def get_command(self, ctx, cmd_name):
         rv = click.Group.get_command(self, ctx, cmd_name)
         if rv is not None:
@@ -46,8 +47,7 @@ class AliasedGroup(click.Group):
         ctx.fail("Too many matches: {}".format(", ".join(sorted(matches))))
 
 
-class ComparableVersion():
-
+class ComparableVersion:
     def __init__(self, version=None):
         if isinstance(version, str):
             version = Version(version)
@@ -76,7 +76,6 @@ class ComparableVersion():
 
 
 class RenpyInstance(ComparableVersion):
-
     def __init__(self, version=None, path=None):
         super(RenpyInstance, self).__init__(version)
         self.path = path
@@ -84,11 +83,12 @@ class RenpyInstance(ComparableVersion):
         self.launcher_path = os.path.join(self.path, "launcher")
 
     def __repr__(self):
-        return "RenpyInstance(version={}, path='{}', launcher_path='{}')".format(self.version, self.path, self.launcher_path)  # noqa: E501
+        return "RenpyInstance(version={}, path='{}', launcher_path='{}')".format(
+            self.version, self.path, self.launcher_path
+        )  # noqa: E501
 
 
 class RenpyRelease(ComparableVersion):
-
     def __init__(self, version=None, url=None):
         super(RenpyRelease, self).__init__(version)
         self.url = url
@@ -97,8 +97,7 @@ class RenpyRelease(ComparableVersion):
         return "RenpyRelease(version={}, url='{}')".format(self.version, self.url)
 
 
-class Registry():
-
+class Registry:
     def __init__(self, filename):
         self.filename = filename
         self.instances = []
@@ -209,7 +208,11 @@ def assure_state():
         logger.debug("Cache directory does not exist, creating it:\n{}".format(CACHE))
         os.mkdir(CACHE)
     if not os.access(CACHE, os.R_OK | os.W_OK):
-        logger.debug("Cache directory is not writeable:\n{}\nPlease make sure this script has permission to write to this directory.".format(CACHE))  # noqa: E501
+        logger.debug(
+            "Cache directory is not writeable:\n{}\nPlease make sure this script has permission to write to this directory.".format(
+                CACHE
+            )
+        )  # noqa: E501
         sys.exit(1)
     instances = scan_instances(CACHE)
     REGISTRY.clear()
@@ -264,8 +267,13 @@ def get_installed_versions(args=None, unknown=None):
 
 @click.group(cls=AliasedGroup)
 @click.option("-d", "--debug", is_flag=True)
-@click.option("-r", "--registry", default=None, type=str,
-              help="The path to store Ren'Py instances in")
+@click.option(
+    "-r",
+    "--registry",
+    default=None,
+    type=click.Path(file_okay=False, resolve_path=True, writable=True),
+    help="The path to store Ren'Py instances in",
+)
 def cli(debug, registry):
     """Commands can be abbreviated by the shortest unique string.
 
@@ -280,7 +288,6 @@ def cli(debug, registry):
     logzero.loglevel(logging.DEBUG if debug else logging.INFO)
 
     if registry:
-        registry = os.path.abspath(registry)
         os.makedirs(registry, exist_ok=True)
         CACHE = registry
     else:
@@ -291,13 +298,18 @@ def cli(debug, registry):
 
 
 @cli.command()
-@click.option("-a/-l", "--all/--local", "show_all", default=False,
-              help="Show all versions available to download or just the local ones")
-@click.option("-n", "--num-versions", "count", default=5, type=int,
-              help="Amount of versions to show, sorted in descending order")
+@click.option(
+    "-a/-l",
+    "--all/--local",
+    "show_all",
+    default=False,
+    help="Show all versions available to download or just the local ones",
+)
+@click.option(
+    "-n", "--num-versions", "count", default=5, type=int, help="Amount of versions to show, sorted in descending order"
+)
 def list(show_all, count):
-    """List all available versions of Ren'Py.
-    """
+    """List all available versions of Ren'Py."""
     assure_state()
     if show_all:
         releases = get_available_versions()
@@ -318,8 +330,7 @@ def list(show_all, count):
 @cli.command()
 @click.argument("version", required=True, type=str)
 def show(version):
-    """Show detailed information about an installed version of Ren'Py.
-    """
+    """Show detailed information about an installed version of Ren'Py."""
     assure_state()
     if not valid_version(version):
         logger.error("Invalid version specifier!")
@@ -351,10 +362,9 @@ def download(url, dest):
     if first_byte >= file_size:
         return
     header = {"Range": "bytes={}-{}".format(first_byte, file_size)}
-    progress_bar = tqdm(total=file_size, initial=first_byte, unit="B",
-                        unit_scale=True, desc=url.split("/")[-1])
+    progress_bar = tqdm(total=file_size, initial=first_byte, unit="B", unit_scale=True, desc=url.split("/")[-1])
     req = requests.get(url, headers=header, stream=True)
-    with(open(dest, "ab")) as f:
+    with open(dest, "ab") as f:
         for chunk in req.iter_content(chunk_size=1024):
             if chunk:
                 f.write(chunk)
@@ -423,8 +433,7 @@ def patch_file(file, target_line, patch, reverse=False):
 @click.argument("version", required=True, type=str)
 @click.option("-f", "--force", is_flag=True)
 def install(version, force):
-    """Install the specified version of Ren'Py (including RAPT).
-    """
+    """Install the specified version of Ren'Py (including RAPT)."""
     assure_state()
     if REGISTRY.installed(version):
         if force:
@@ -468,16 +477,22 @@ def install(version, force):
     site_package_path = os.path.join(CACHE, version, "lib", arch, "lib", "python2.7")
 
     with cd(rapt_path):
-        patch = "sys.path.insert(0, '{}')\n\nimport ssl\nssl._create_default_https_context = ssl._create_unverified_context\n".format(site_package_path)  # noqa: E501
+        patch = "sys.path.insert(0, '{}')\n\nimport ssl\nssl._create_default_https_context = ssl._create_unverified_context\n".format(
+            site_package_path
+        )  # noqa: E501
         patch_file("android.py", "import sys", patch, reverse=True)
 
-        patch_file(os.path.join("buildlib", "rapt", "interface.py"),
-                   "def yesno_choice(self, prompt, default=None):",
-                   "        return True\n")
+        patch_file(
+            os.path.join("buildlib", "rapt", "interface.py"),
+            "def yesno_choice(self, prompt, default=None):",
+            "        return True\n",
+        )
 
-        patch_file(os.path.join("buildlib", "rapt", "interface.py"),
-                   "def input(self, prompt, empty=None):",
-                   "        return \"renutil\"\n")
+        patch_file(
+            os.path.join("buildlib", "rapt", "interface.py"),
+            "def input(self, prompt, empty=None):",
+            '        return "renutil"\n',
+        )
 
     os.environ["RAPT_NO_TERMS"] = "no"
     with cd(rapt_path):
@@ -495,16 +510,22 @@ def install(version, force):
 
     head, _ = os.path.split(get_libraries(instance)[0])
     if arch != "windows-i686":
-        paths = [os.path.join(head, "python"), os.path.join(head, "pythonw"),
-                 os.path.join(head, "renpy"), os.path.join(head, "zsync"),
-                 os.path.join(head, "zsyncmake"),
-                 os.path.join(CACHE, instance.rapt_path, "prototype", "gradlew"),
-                 os.path.join(CACHE, instance.rapt_path, "project", "gradlew")]
+        paths = [
+            os.path.join(head, "python"),
+            os.path.join(head, "pythonw"),
+            os.path.join(head, "renpy"),
+            os.path.join(head, "zsync"),
+            os.path.join(head, "zsyncmake"),
+            os.path.join(CACHE, instance.rapt_path, "prototype", "gradlew"),
+            os.path.join(CACHE, instance.rapt_path, "project", "gradlew"),
+        ]
         for path in paths:
             os.chmod(path, S_IRUSR | S_IXUSR)
 
-    for path in (os.path.join(CACHE, instance.rapt_path, "prototype", "gradle.properties"),
-                 os.path.join(CACHE, instance.rapt_path, "project", "gradle.properties")):
+    for path in (
+        os.path.join(CACHE, instance.rapt_path, "prototype", "gradle.properties"),
+        os.path.join(CACHE, instance.rapt_path, "project", "gradle.properties"),
+    ):
         with open(path, "r") as f:
             original_content = f.readlines()
 
@@ -521,8 +542,7 @@ def install(version, force):
 @cli.command()
 @click.argument("version", required=True, type=str)
 def uninstall(version):
-    """Uninstall the specified Ren'Py version.
-    """
+    """Uninstall the specified Ren'Py version."""
     assure_state()
     if not REGISTRY.installed(version):
         logger.error("{} is not installed!".format(version))
@@ -647,21 +667,22 @@ def launch(version, direct, args):
 @cli.command()
 @click.argument("version", required=True, type=str)
 def cleanup(version):
-    """Clean temporary files of the specified Ren'Py version.
-    """
+    """Clean temporary files of the specified Ren'Py version."""
     assure_state()
     if not REGISTRY.installed(version):
         logger.error("{} is not installed!".format(version))
         sys.exit(1)
     instance = REGISTRY.get_instance(version)
-    paths = [os.path.join(instance.path, "tmp"),
-             os.path.join(instance.rapt_path, "assets"),
-             os.path.join(instance.rapt_path, "bin"),
-             os.path.join(instance.rapt_path, "project", "app", "build")]
+    paths = [
+        os.path.join(instance.path, "tmp"),
+        os.path.join(instance.rapt_path, "assets"),
+        os.path.join(instance.rapt_path, "bin"),
+        os.path.join(instance.rapt_path, "project", "app", "build"),
+    ]
     for path in paths:
         if os.path.isdir(os.path.join(CACHE, path)):
             shutil.rmtree(os.path.join(CACHE, path))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()
