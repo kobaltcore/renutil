@@ -13,8 +13,8 @@ renutil = "renutil.renutil:cli"
 
 [tool.poetry.dependencies]
 python = "^3.6"
-lxml = "^4.5.2"
-tqdm = "^4.49.0"
+lxml = "^4.6.1"
+tqdm = "^4.50.2"
 click = "^7.1.2"
 logzero = "^1.5.0"
 requests = "^2.24.0"
