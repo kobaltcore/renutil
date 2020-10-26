@@ -12,8 +12,17 @@ from contextlib import contextmanager
 from subprocess import run, PIPE, STDOUT, Popen
 
 ### Logging ###
-import logzero
-from logzero import logger
+from rich import print
+from rich.logging import RichHandler
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(rich_tracebacks=True, markup=True)],
+)
+
+logger = logging.getLogger("rich")
 
 ### CLI Parsing ###
 import click
@@ -31,7 +40,7 @@ from tqdm import tqdm
 
 semver = re.compile(
     r"^((0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?)/?$"
-)  # noqa: E501
+)
 
 
 class AliasedGroup(click.Group):
@@ -85,7 +94,7 @@ class RenpyInstance(ComparableVersion):
     def __repr__(self):
         return "RenpyInstance(version={}, path='{}', launcher_path='{}')".format(
             self.version, self.path, self.launcher_path
-        )  # noqa: E501
+        )
 
 
 class RenpyRelease(ComparableVersion):
@@ -205,14 +214,14 @@ def scan_instances(path):
 
 def assure_state():
     if not os.path.isdir(CACHE):
-        logger.debug("Cache directory does not exist, creating it:\n{}".format(CACHE))
+        logger.debug("Cache directory does not exist, creating it: '{}'".format(CACHE))
         os.mkdir(CACHE)
     if not os.access(CACHE, os.R_OK | os.W_OK):
         logger.debug(
-            "Cache directory is not writeable:\n{}\nPlease make sure this script has permission to write to this directory.".format(
+            "Cache directory is not writeable: '{}'\nPlease make sure this script has permission to write to this directory.".format(
                 CACHE
             )
-        )  # noqa: E501
+        )
         sys.exit(1)
     instances = scan_instances(CACHE)
     REGISTRY.clear()
@@ -241,9 +250,13 @@ def get_available_versions(args=None, unknown=None):
     releases = []
     try:
         r = requests.get("https://www.renpy.org/dl/")
-    except:  # noqa: E722
-        logger.error("Could not retrieve version list: No connection could be established.")
-        logger.error("This might mean that you are not connected to the internet or that renpy.org is down.")
+    except Exception:
+        logger.exception(
+            "Could not retrieve version list: No connection could be established."
+        )
+        logger.exception(
+            "This might mean that you are not connected to the internet or that renpy.org is down."
+        )
         sys.exit(1)
     tree = html.fromstring(r.content)
     links = tree.xpath("//a/text()")
@@ -285,7 +298,7 @@ def cli(debug, registry):
     """
     global CACHE, REGISTRY
 
-    logzero.loglevel(logging.DEBUG if debug else logging.INFO)
+    logger.setLevel(logging.DEBUG if debug else logging.INFO)
 
     if registry:
         os.makedirs(registry, exist_ok=True)
@@ -294,7 +307,7 @@ def cli(debug, registry):
         CACHE = os.path.join(os.path.expanduser("~"), ".renutil")
     REGISTRY = Registry(os.path.join(CACHE, "index.bin"))
 
-    logger.debug("Registry Location: {}".format(CACHE))
+    logger.debug("Registry Location: '{}'".format(CACHE))
 
 
 @cli.command()
@@ -306,7 +319,12 @@ def cli(debug, registry):
     help="Show all versions available to download or just the local ones",
 )
 @click.option(
-    "-n", "--num-versions", "count", default=5, type=int, help="Amount of versions to show, sorted in descending order"
+    "-n",
+    "--num-versions",
+    "count",
+    default=5,
+    type=int,
+    help="Amount of versions to show, sorted in descending order",
 )
 def list(show_all, count):
     """List all available versions of Ren'Py."""
@@ -317,14 +335,14 @@ def list(show_all, count):
             logger.warning("No releases are available online.")
         else:
             for release in releases[:count]:
-                click.echo(release.version)
+                print(release.version)
     else:
         instances = get_installed_versions()
         if not instances:
             logger.warning("No instances are currently installed.")
         else:
             for release in instances[:count]:
-                click.echo(release.version)
+                print(release.version)
 
 
 @cli.command()
@@ -336,17 +354,17 @@ def show(version):
         logger.error("Invalid version specifier!")
         sys.exit(1)
     if not REGISTRY.installed(version):
-        logger.error("Version {} is not installed!".format(version))
+        logger.error("Version [salmon]{}[/salmon] is not installed!".format(version))
         sys.exit(1)
     instance = REGISTRY.get_instance(version)
-    click.echo("Version: {}".format(version))
-    click.echo("Install Location: {}".format(os.path.join(CACHE, instance.path)))
+    print("Version: [green]{}[/green]".format(version))
+    print("Install Location: {}".format(os.path.join(CACHE, instance.path)))
     sdk_filename = "renpy-{}-sdk.zip".format(version)
     rapt_filename = "renpy-{}-rapt.zip".format(version)
     SDK_URL = "https://www.renpy.org/dl/{}/{}".format(version, sdk_filename)
     RAPT_URL = "https://www.renpy.org/dl/{}/{}".format(version, rapt_filename)
-    click.echo("SDK Url: {}".format(SDK_URL))
-    click.echo("RAPT Url: {}".format(RAPT_URL))
+    print("SDK Url: {}".format(SDK_URL))
+    print("RAPT Url: {}".format(RAPT_URL))
 
 
 def download(url, dest):
@@ -362,7 +380,13 @@ def download(url, dest):
     if first_byte >= file_size:
         return
     header = {"Range": "bytes={}-{}".format(first_byte, file_size)}
-    progress_bar = tqdm(total=file_size, initial=first_byte, unit="B", unit_scale=True, desc=url.split("/")[-1])
+    progress_bar = tqdm(
+        total=file_size,
+        initial=first_byte,
+        unit="B",
+        unit_scale=True,
+        desc=url.split("/")[-1],
+    )
     req = requests.get(url, headers=header, stream=True)
     with open(dest, "ab") as f:
         for chunk in req.iter_content(chunk_size=1024):
@@ -462,8 +486,12 @@ def install(version, force):
     logger.info("Extracting files...")
     sdk_zip = ZipFile(os.path.join(CACHE, sdk_filename), "r")
     rapt_zip = ZipFile(os.path.join(CACHE, rapt_filename), "r")
-    sdk_zip.extractall(path=os.path.join(CACHE, version), members=get_members_zip(sdk_zip))
-    rapt_zip.extractall(path=os.path.join(CACHE, version, "rapt"), members=get_members_zip(rapt_zip))
+    sdk_zip.extractall(
+        path=os.path.join(CACHE, version), members=get_members_zip(sdk_zip)
+    )
+    rapt_zip.extractall(
+        path=os.path.join(CACHE, version, "rapt"), members=get_members_zip(rapt_zip)
+    )
 
     logger.info("Installing RAPT...")
     rapt_path = os.path.join(CACHE, version, "rapt")
@@ -479,7 +507,7 @@ def install(version, force):
     with cd(rapt_path):
         patch = "sys.path.insert(0, '{}')\n\nimport ssl\nssl._create_default_https_context = ssl._create_unverified_context\n".format(
             site_package_path
-        )  # noqa: E501
+        )
         patch_file("android.py", "import sys", patch, reverse=True)
 
         patch_file(
@@ -496,8 +524,14 @@ def install(version, force):
 
     os.environ["RAPT_NO_TERMS"] = "no"
     with cd(rapt_path):
-        logger.debug("Running {}".format(" ".join((python_path, "-O", "android.py", "installsdk"))))
-        install = Popen([python_path, "-O", "android.py", "installsdk"], stdout=PIPE, stderr=STDOUT)
+        logger.debug(
+            "Running '{}'".format(
+                " ".join((python_path, "-O", "android.py", "installsdk"))
+            )
+        )
+        install = Popen(
+            [python_path, "-O", "android.py", "installsdk"], stdout=PIPE, stderr=STDOUT
+        )
         for line in install.stdout:
             line = line.strip()
             if line:
@@ -536,7 +570,7 @@ def install(version, force):
                 else:
                     f.write(line)
 
-    logger.info("Done installing {}".format(version))
+    logger.info("Done installing [green]{}[/green]".format(version))
 
 
 @cli.command()
@@ -553,8 +587,8 @@ def uninstall(version):
 
 
 def get_platform():
-    logger.debug("System: {}".format(platform.system()))
-    logger.debug("Machine: {}".format(platform.machine()))
+    logger.debug("System: '{}'".format(platform.system()))
+    logger.debug("Machine: '{}'".format(platform.machine()))
 
     if "Darwin" in platform.system():
         return "darwin-x86_64"
@@ -604,10 +638,16 @@ def get_libraries(instance):
         lib = os.path.join(lib, "renpy")
 
     if not lib:
-        logger.error("Ren'Py platform files not found in '{}'".format(os.path.join(root, "lib", arch)))
+        logger.error(
+            "Ren'Py platform files not found in '{}'".format(
+                os.path.join(root, "lib", arch)
+            )
+        )
 
     if "LD_LIBRARY_PATH" in os.environ and len(os.environ["LD_LIBRARY_PATH"]) != 0:
-        os.environ["LD_LIBRARY_PATH"] = "{}:{}".format(lib, os.environ["LD_LIBRARY_PATH"])
+        os.environ["LD_LIBRARY_PATH"] = "{}:{}".format(
+            lib, os.environ["LD_LIBRARY_PATH"]
+        )
 
     for folder in [root, root1, root2]:
         base_file = os.path.join(CACHE, folder, "renpy.py")
@@ -670,7 +710,7 @@ def cleanup(version):
     """Clean temporary files of the specified Ren'Py version."""
     assure_state()
     if not REGISTRY.installed(version):
-        logger.error("{} is not installed!".format(version))
+        logger.error("[salmon]{}[/salmon] is not installed!".format(version))
         sys.exit(1)
     instance = REGISTRY.get_instance(version)
     paths = [
