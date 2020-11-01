@@ -639,9 +639,9 @@ def get_libraries(instance):
         if os.path.isdir(lib):
             break
     if arch == "windows-i686":
-        lib = os.path.join(lib, "renpy.exe")
+        lib = os.path.join(lib, "python.exe")
     else:
-        lib = os.path.join(lib, "renpy")
+        lib = os.path.join(lib, "python")
 
     if not lib:
         logger.error(
