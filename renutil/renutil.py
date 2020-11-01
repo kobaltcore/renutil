@@ -496,7 +496,7 @@ def install(version, force):
     logger.info("Installing RAPT...")
     rapt_path = os.path.join(CACHE, version, "rapt")
 
-    arch = get_platform()
+    arch = get_platform(version)
     if arch == "windows-i686":
         python_path = os.path.join(CACHE, version, "lib", arch, "python.exe")
     else:
@@ -586,12 +586,18 @@ def uninstall(version):
     shutil.rmtree(os.path.join(CACHE, instance.path))
 
 
-def get_platform():
+def get_platform(version):
+    if isinstance(version, str):
+        version = ComparableVersion(version)
+
     logger.debug("System: '{}'".format(platform.system()))
     logger.debug("Machine: '{}'".format(platform.machine()))
 
     if "Darwin" in platform.system():
-        return "darwin-x86_64"
+        if version >= ComparableVersion("7.4.0"):
+            return "mac-x86_64"
+        else:
+            return "darwin-x86_64"
     elif "Windows" in platform.system():
         return "windows-i686"
     elif "x86_64" in platform.machine() or "amd64" in platform.machine():
@@ -607,9 +613,9 @@ def get_libraries(instance):
     root1 = root
     root2 = root
     lib = None
-    arch = get_platform()
+    arch = get_platform(instance)
 
-    if arch == "darwin-x86_64":
+    if arch == "darwin-x86_64" or arch == "mac-x86_64":
         root1 = root + "/../Resources/autorun"
         root2 = root + "/../../.."
     elif arch == "windows-i686":
