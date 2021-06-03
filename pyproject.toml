@@ -14,11 +14,11 @@ renutil = "renutil.renutil:cli"
 [tool.poetry.dependencies]
 python = "^3.7"
 lxml = "^4.6.3"
-tqdm = "^4.60.0"
-click = "^7.1.2"
+tqdm = "^4.61.0"
+click = "^8.0.1"
 requests = "^2.25.1"
 semantic-version = "^2.8.5"
-rich = "^10.1.0"
+rich = "^10.2.2"
 
 [tool.poetry.dev-dependencies]
 flake8 = "^3.8.3"
