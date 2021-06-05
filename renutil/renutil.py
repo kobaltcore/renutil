@@ -666,8 +666,9 @@ def get_libraries(instance):
 @cli.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("version", required=True, type=str)
 @click.option("-d", "--direct", is_flag=True)
+@click.option("-h", "--headless", is_flag=True)
 @click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def launch(version, direct, args):
+def launch(version, direct, headless, args):
     """Launch the specified version of Ren'Py.
 
     If invoked with default arguments, starts the 'launcher' project,
@@ -697,7 +698,9 @@ def launch(version, direct, args):
         logger.error("{} is not installed!".format(version))
         sys.exit(1)
     instance = REGISTRY.get_instance(version)
-    os.environ["SDL_AUDIODRIVER"] = "dummy"
+    if headless:
+        os.environ["SDL_AUDIODRIVER"] = "dummy"
+        os.environ["SDL_VIDEODRIVER"] = "dummy"
     cmd = get_libraries(instance)
     if not direct:
         cmd += [os.path.join(CACHE, instance.launcher_path)]
@@ -707,7 +710,9 @@ def launch(version, direct, args):
         run(cmd)
     except KeyboardInterrupt:
         assure_state()
-    del os.environ["SDL_AUDIODRIVER"]
+    if headless:
+        del os.environ["SDL_AUDIODRIVER"]
+        del os.environ["SDL_VIDEODRIVER"]
 
 
 @cli.command()
