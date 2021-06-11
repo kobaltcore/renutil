@@ -729,7 +729,6 @@ def cleanup(version):
         os.path.join(instance.rapt_path, "assets"),
         os.path.join(instance.rapt_path, "bin"),
         os.path.join(instance.rapt_path, "project", "app", "build"),
-        os.path.join(instance.rapt_path, "project", "app", "src", "main"),
     ]
     for path in paths:
         full_path = os.path.join(CACHE, path)
