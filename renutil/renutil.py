@@ -732,8 +732,10 @@ def cleanup(version):
         os.path.join(instance.rapt_path, "project", "app", "src", "main"),
     ]
     for path in paths:
-        if os.path.isdir(os.path.join(CACHE, path)):
-            shutil.rmtree(os.path.join(CACHE, path))
+        full_path = os.path.join(CACHE, path)
+        if os.path.isdir(full_path):
+            logger.info("Cleaning {}".format(full_path))
+            shutil.rmtree(full_path)
 
 
 if __name__ == "__main__":
