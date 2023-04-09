@@ -2,6 +2,13 @@
 [![CircleCI](https://circleci.com/gh/kobaltcore/renutil.svg?style=svg)](https://circleci.com/gh/kobaltcore/renutil)
 [![Downloads](https://pepy.tech/badge/renutil)](https://pepy.tech/project/renutil)
 
+> <picture>
+>   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Mqxx/GitHub-Markdown/main/blockquotes/badge/light-theme/warning.svg">
+>   <img alt="Warning" src="https://raw.githubusercontent.com/Mqxx/GitHub-Markdown/main/blockquotes/badge/dark-theme/warning.svg">
+> </picture><br>
+>
+> `renutil` is no longer under active development. Focus has instead shifted to the new iteration of this project, [renkit](https://github.com/kobaltcore/renkit). It builds off of the lessons learned from `renutil` and aims to be a more robust and feature-rich solution. `renutil` will slowly be phased out in favor of `renkit`, but will remain available for the foreseeable future, though no further updates are planned.
+
 A toolkit for managing Ren'Py instances via the command line.
 
 renUtil can install, update, launch and remove instances of Ren'Py. The instances are completely independent from each other. It automatically sets up and configures RAPT so new instances are instantly ready to deploy to many different platforms. Best of all, renUtil automatically configures Ren'Py in such a way that you can run it headless, making it well suited for build servers and continuous integration pipelines.
