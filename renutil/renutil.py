@@ -615,6 +615,15 @@ def get_libraries(instance):
     root2 = root
     lib = None
     arch = get_platform(instance)
+    version = str(instance.version).split('.')
+    major = int(version[0])
+    minor = int(version[1])
+    prefix = ""
+
+    if major >= 8:
+      prefix = "py3-"
+    elif major == 7 and minor >= 5:
+      prefix = "py2-"
 
     if arch == "darwin-x86_64" or arch == "mac-x86_64":
         root1 = root + "/../Resources/autorun"
@@ -636,7 +645,7 @@ def get_libraries(instance):
         sys.exit(1)
 
     for folder in [root, root1, root2]:
-        lib = os.path.join(CACHE, folder, "lib", arch)
+        lib = os.path.join(CACHE, folder, "lib", prefix+arch)
         if os.path.isdir(lib):
             break
     if arch == "windows-i686":
